@@ -164,7 +164,7 @@ var Modal = (function () {
     .then(function (res) { return res.json(); })
     .then(function (places) {
       if (!places.length) {
-        grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">ยังไม่มีข้อมูลแหล่งท่องเที่ยว</p>';
+        grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_no_attractions') : '') + '</p>';
         return;
       }
       grid.innerHTML = places.map(function (p) {
@@ -225,7 +225,7 @@ var Modal = (function () {
       }
     })
     .catch(function () {
-      grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">ไม่สามารถโหลดแหล่งท่องเที่ยวได้ในขณะนี้</p>';
+      grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_attractions') : '') + '</p>';
     });
 })();
 
@@ -238,7 +238,7 @@ var Modal = (function () {
     .then(function (res) { return res.json(); })
     .then(function (items) {
       if (!items.length) {
-        grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">ยังไม่มีข้อมูล</p>';
+        grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_no_nearby') : '') + '</p>';
         return;
       }
       grid.innerHTML = items.map(function (p) {
@@ -263,28 +263,16 @@ var Modal = (function () {
       });
     })
     .catch(function () {
-      grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">ไม่สามารถโหลดข้อมูลได้ในขณะนี้</p>';
+      grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_nearby') : '') + '</p>';
     });
 })();
 
 // ============ SEASONAL PICKS ============
 (function () {
   var seasons = [
-    {
-      label: 'ฤดูร้อน (มี.ค.–มิ.ย.)',
-      desc: 'อากาศแจ่มใสยามเช้า เหมาะเดินชมทุ่งนาและกราบไหว้พระที่วัดบ้านกาดก่อนแดดจัด',
-      picks: ['ทุ่งนาอินทรีย์แม่หอพระ', 'วัดบ้านกาด']
-    },
-    {
-      label: 'ฤดูฝน (ก.ค.–ต.ค.)',
-      desc: 'สายน้ำในน้ำตกและบ่อน้ำไหลแรงเต็มที่ ทุ่งนาเขียวขจีสุดสายตา เหมาะกับคนชอบธรรมชาติชุ่มฉ่ำ',
-      picks: ['น้ำตกหินปูน', 'บ่อน้ำสีมรกต']
-    },
-    {
-      label: 'ฤดูหนาว (พ.ย.–ก.พ.)',
-      desc: 'อากาศเย็นสบาย เหมาะเดินป่าเข้าชมถ้ำ พร้อมสัมผัสทุ่งข้าวสีทองในช่วงเก็บเกี่ยว',
-      picks: ['ถ้ำศักดิ์สิทธิ์', 'ทุ่งนาอินทรีย์แม่หอพระ']
-    }
+    { descKey: 'season_summer_desc', picks: ['ทุ่งนาอินทรีย์แม่หอพระ', 'วัดบ้านกาด'] },
+    { descKey: 'season_rainy_desc', picks: ['น้ำตกหินปูน', 'บ่อน้ำสีมรกต'] },
+    { descKey: 'season_winter_desc', picks: ['ถ้ำศักดิ์สิทธิ์', 'ทุ่งนาอินทรีย์แม่หอพระ'] }
   ];
 
   var buttons = document.querySelectorAll('#season-buttons .season-btn');
@@ -292,9 +280,12 @@ var Modal = (function () {
   var picksEl = document.getElementById('season-picks');
   if (!descEl) return;
 
+  var currentIndex = 0;
+
   function render(index) {
+    currentIndex = index;
     var s = seasons[index];
-    descEl.textContent = s.desc;
+    descEl.textContent = window.t ? window.t(s.descKey) : '';
     picksEl.innerHTML = '';
     s.picks.forEach(function (name) {
       var span = document.createElement('span');
@@ -311,6 +302,8 @@ var Modal = (function () {
       render(parseInt(btn.getAttribute('data-season'), 10));
     });
   });
+
+  window.addEventListener('langchange', function () { render(currentIndex); });
 
   render(0);
 })();
@@ -333,6 +326,7 @@ var Modal = (function () {
   var productsEl = document.getElementById('cal-products');
   var emptyText = document.getElementById('cal-empty-text');
   var monthData = [];
+  var currentMonthIndex = 0;
 
   function renderGalleryFor(images) {
     images = Array.isArray(images) ? images.filter(Boolean) : [];
@@ -355,6 +349,7 @@ var Modal = (function () {
   }
 
   function select(index) {
+    currentMonthIndex = index;
     var buttons = monthButtonsEl.querySelectorAll('.pill-btn');
     buttons.forEach(function (b, i) { b.classList.toggle('active', i === index); });
 
@@ -371,7 +366,7 @@ var Modal = (function () {
 
       if (traditions.length) {
         traditionBlock.style.display = 'flex';
-        traditionTag.textContent = 'ประเพณีประจำเดือน' + m.label;
+        traditionTag.textContent = (window.t ? window.t('cal_tradition_prefix') : '') + m.label;
         traditionItemsEl.innerHTML = traditions.map(function (t) {
           return '<div><h4>' + escapeHtml(t.title) + '</h4><p>' + escapeHtml(t.desc) + '</p></div>';
         }).join('');
@@ -404,7 +399,7 @@ var Modal = (function () {
     } else {
       hasDataPanel.style.display = 'none';
       noDataPanel.style.display = 'flex';
-      emptyText.textContent = 'กำลังอัปเดตข้อมูลประเพณี สินค้าเกษตร และกิจกรรมของเดือน' + m.label;
+      emptyText.textContent = (window.t ? window.t('cal_updating_prefix') : '') + m.label;
     }
   }
 
@@ -424,8 +419,12 @@ var Modal = (function () {
       if (months.length) select(0);
     })
     .catch(function () {
-      monthButtonsEl.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">ไม่สามารถโหลดปฏิทินได้ในขณะนี้</p>';
+      monthButtonsEl.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_calendar') : '') + '</p>';
     });
+
+  window.addEventListener('langchange', function () {
+    if (monthData.length) select(currentMonthIndex);
+  });
 })();
 
 // ============ Q&A FORM ============
@@ -446,7 +445,7 @@ var Modal = (function () {
     var question = document.getElementById('qa-question').value.trim();
 
     submitBtn.disabled = true;
-    submitBtn.textContent = 'กำลังส่ง...';
+    submitBtn.textContent = window.t ? window.t('qa_sending') : 'กำลังส่ง...';
 
     fetch(API_BASE + '/api/qa', {
       method: 'POST',
@@ -460,23 +459,23 @@ var Modal = (function () {
       })
       .then(function (result) {
         if (result.ok && result.data.success) {
-          successMsg.textContent = 'ขอบคุณสำหรับคำถาม ทีมงานจะติดต่อกลับโดยเร็วที่สุด';
+          successMsg.textContent = window.t ? window.t('qa_success') : 'ขอบคุณสำหรับคำถาม ทีมงานจะติดต่อกลับโดยเร็วที่สุด';
           successMsg.classList.add('show');
           form.reset();
         } else {
-          successMsg.textContent = (result.data && result.data.error) || 'ส่งคำถามไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+          successMsg.textContent = (result.data && result.data.error) || (window.t ? window.t('qa_fail_generic') : 'ส่งคำถามไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
           successMsg.style.color = '#B23A3A';
           successMsg.classList.add('show');
         }
       })
       .catch(function () {
-        successMsg.textContent = 'ไม่สามารถเชื่อมต่อระบบได้ กรุณาตรวจสอบว่าเซิร์ฟเวอร์ backend เปิดอยู่ (backend/app.py)';
+        successMsg.textContent = window.t ? window.t('qa_fail_network') : 'ไม่สามารถเชื่อมต่อระบบได้ กรุณาตรวจสอบว่าเซิร์ฟเวอร์ backend เปิดอยู่ (backend/app.py)';
         successMsg.style.color = '#B23A3A';
         successMsg.classList.add('show');
       })
       .finally(function () {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'ส่งคำถาม';
+        submitBtn.textContent = window.t ? window.t('qa_submit_btn') : 'ส่งคำถาม';
       });
   });
 })();
@@ -516,7 +515,7 @@ var Modal = (function () {
       });
     })
     .catch(function () {
-      grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">ไม่สามารถโหลดเรื่องราวได้ในขณะนี้</p>';
+      grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_stories') : '') + '</p>';
     });
 })();
 
@@ -556,7 +555,7 @@ var Modal = (function () {
       });
     })
     .catch(function () {
-      productGrid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">ไม่สามารถโหลดสินค้าได้ในขณะนี้</p>';
+      productGrid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_products') : '') + '</p>';
     });
 })();
 
@@ -637,6 +636,6 @@ var Modal = (function () {
       });
     })
     .catch(function () {
-      wrap.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">ไม่สามารถโหลดบริการได้ในขณะนี้</p>';
+      wrap.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_services') : '') + '</p>';
     });
 })();
