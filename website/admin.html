@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>แผงแอดมิน — วิสาหกิจชุมชนแม่หอพระ</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin-body">
+
+<div id="login-screen" class="admin-login">
+  <div class="card admin-login-card">
+    <h2>เข้าสู่ระบบแอดมิน</h2>
+    <p style="color:var(--text-muted); font-size:14px; margin:0 0 20px;">สำหรับเพิ่ม/แก้ไขเรื่องราวและสินค้าบนเว็บไซต์</p>
+    <div class="form-field">
+      <label for="login-password">รหัสผ่านแอดมิน</label>
+      <input id="login-password" type="password" placeholder="กรอกรหัสผ่าน">
+    </div>
+    <button id="login-btn" class="btn-primary" style="margin-top:10px;">เข้าสู่ระบบ</button>
+    <p id="login-error" class="admin-error"></p>
+  </div>
+</div>
+
+<div id="admin-app" class="admin-app" style="display:none;">
+  <header class="site-header">
+    <div class="container" style="padding-top:14px; padding-bottom:14px; display:flex; align-items:center; justify-content:space-between;">
+      <a class="brand" href="index.html">
+        <img src="images/logo-seal.png" alt="ตราวิสาหกิจชุมชน">
+        <span class="brand-text">
+          <strong>แผงแอดมิน</strong>
+          <span>วิสาหกิจชุมชนเกษตรเชิงท่องเที่ยวตำบลแม่หอพระ</span>
+        </span>
+      </a>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <a class="navlink" href="index.html" target="_blank">ดูเว็บไซต์จริง ↗</a>
+        <button id="logout-btn" class="btn-outline" style="color:var(--green-800); border-color:var(--green-800);">ออกจากระบบ</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container admin-tabs">
+    <button class="pill-btn" data-tab="attractions">แหล่งท่องเที่ยว</button>
+    <button class="pill-btn" data-tab="calendar">ปฏิทินประสบการณ์</button>
+    <button class="pill-btn" data-tab="products">สินค้าและบริการ</button>
+    <button class="pill-btn active" data-tab="stories">เรื่องราว</button>
+    <button class="pill-btn" data-tab="qa">คำถามจากผู้เยี่ยมชม</button>
+  </div>
+
+  <!-- ============ ATTRACTIONS TAB ============ -->
+  <section id="tab-attractions" class="container admin-panel" style="display:none;">
+    <div class="admin-grid">
+      <div class="card admin-form">
+        <h3 id="attraction-form-title">เพิ่มแหล่งท่องเที่ยวใหม่</h3>
+        <input type="hidden" id="attraction-id">
+        <div class="form-field">
+          <label for="attraction-category">หมวดหมู่</label>
+          <select id="attraction-category">
+            <option value="nature">ธรรมชาติ</option>
+            <option value="culture">วัฒนธรรม</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="attraction-name">ชื่อสถานที่</label>
+          <input id="attraction-name" type="text" placeholder="เช่น น้ำตกหินปูน">
+        </div>
+        <div class="form-field">
+          <label for="attraction-tag">ป้ายกำกับ (ข้อความสั้น ๆ บนการ์ด)</label>
+          <input id="attraction-tag" type="text" placeholder="เช่น ธรรมชาติ หรือ วัฒนธรรม · ศรัทธา">
+        </div>
+        <div class="form-field">
+          <label for="attraction-description">รายละเอียด</label>
+          <textarea id="attraction-description" rows="4" placeholder="รายละเอียดสถานที่..."></textarea>
+        </div>
+        <div class="form-field">
+          <label for="attraction-image">รูปภาพ</label>
+          <input id="attraction-image" type="file" accept="image/*">
+          <img id="attraction-image-preview" class="admin-preview" style="display:none;">
+        </div>
+        <div class="admin-form-actions">
+          <button id="attraction-save-btn" class="btn-primary">บันทึกแหล่งท่องเที่ยว</button>
+          <button id="attraction-cancel-btn" class="btn-outline" style="display:none; color:var(--green-800); border-color:var(--green-800);">ยกเลิกแก้ไข</button>
+        </div>
+        <p id="attraction-form-msg" class="admin-msg"></p>
+      </div>
+
+      <div id="attraction-list" class="admin-list"></div>
+    </div>
+  </section>
+
+  <!-- ============ CALENDAR TAB ============ -->
+  <section id="tab-calendar" class="container admin-panel" style="display:none;">
+    <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">เลือกเดือนที่ต้องการแก้ไข แล้วกรอกข้อมูล — ปล่อยว่างทุกช่องถ้าต้องการให้เดือนนั้นแสดงเป็น "กำลังอัปเดตข้อมูล" บนเว็บไซต์</p>
+    <div class="pill-row" id="calendar-month-buttons"></div>
+    <div class="card admin-form" style="max-width:640px;">
+      <h3 id="calendar-form-title">แก้ไขข้อมูลเดือน</h3>
+      <div class="form-field">
+        <label for="cal-tradition-title-input">ชื่อประเพณีประจำเดือน</label>
+        <input id="cal-tradition-title-input" type="text" placeholder="เช่น ตานข้าวใหม่">
+      </div>
+      <div class="form-field">
+        <label for="cal-tradition-desc-input">รายละเอียดประเพณี</label>
+        <textarea id="cal-tradition-desc-input" rows="3"></textarea>
+      </div>
+      <div class="form-field">
+        <label for="cal-activity-title-input">ชื่อกิจกรรมแนะนำ</label>
+        <input id="cal-activity-title-input" type="text" placeholder="เช่น ปิ้งข้าวจี่โบราณ">
+      </div>
+      <div class="form-field">
+        <label for="cal-activity-desc-input">รายละเอียดกิจกรรม</label>
+        <textarea id="cal-activity-desc-input" rows="3"></textarea>
+      </div>
+      <div class="form-field">
+        <label for="cal-products-input">สินค้าเกษตรประจำเดือน (คั่นด้วยเครื่องหมายจุลภาค ,)</label>
+        <input id="cal-products-input" type="text" placeholder="เช่น ข้าวเหนียวพันธุ์พื้นเมือง, ข้าวหอมอินทรีย์แม่หอพระ">
+      </div>
+      <div class="admin-form-actions">
+        <button id="calendar-save-btn" class="btn-primary">บันทึกเดือนนี้</button>
+      </div>
+      <p id="calendar-form-msg" class="admin-msg"></p>
+    </div>
+  </section>
+
+  <!-- ============ STORIES TAB ============ -->
+  <section id="tab-stories" class="container admin-panel">
+    <div class="admin-grid">
+      <div class="card admin-form">
+        <h3 id="story-form-title">เพิ่มบทความใหม่</h3>
+        <input type="hidden" id="story-id">
+        <div class="form-field">
+          <label for="story-title">ชื่อบทความ</label>
+          <input id="story-title" type="text" placeholder="เช่น ตำนานพระพุทธรูปวัดบ้านกาด">
+        </div>
+        <div class="form-field">
+          <label for="story-excerpt">เนื้อหา/สรุปย่อ</label>
+          <textarea id="story-excerpt" rows="5" placeholder="เนื้อหาบทความ..."></textarea>
+        </div>
+        <div class="form-field">
+          <label for="story-date">วันที่เผยแพร่</label>
+          <input id="story-date" type="date">
+        </div>
+        <div class="form-field">
+          <label for="story-image">รูปภาพประกอบ</label>
+          <input id="story-image" type="file" accept="image/*">
+          <img id="story-image-preview" class="admin-preview" style="display:none;">
+        </div>
+        <div class="admin-form-actions">
+          <button id="story-save-btn" class="btn-primary">บันทึกบทความ</button>
+          <button id="story-cancel-btn" class="btn-outline" style="display:none; color:var(--green-800); border-color:var(--green-800);">ยกเลิกแก้ไข</button>
+        </div>
+        <p id="story-form-msg" class="admin-msg"></p>
+      </div>
+
+      <div id="story-list" class="admin-list"></div>
+    </div>
+  </section>
+
+  <!-- ============ PRODUCTS TAB ============ -->
+  <section id="tab-products" class="container admin-panel" style="display:none;">
+    <div class="admin-grid">
+      <div class="card admin-form">
+        <h3 id="product-form-title">เพิ่มรายการใหม่</h3>
+        <input type="hidden" id="product-id">
+        <div class="form-field">
+          <label for="product-kind">ประเภท</label>
+          <select id="product-kind">
+            <option value="product">สินค้า</option>
+            <option value="service">บริการ</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="product-name">ชื่อรายการ</label>
+          <input id="product-name" type="text" placeholder="เช่น ข้าวกล้องอินทรีย์">
+        </div>
+        <div class="form-field">
+          <label for="product-description">รายละเอียด</label>
+          <textarea id="product-description" rows="4" placeholder="รายละเอียดสินค้า/บริการ..."></textarea>
+        </div>
+        <div class="form-field">
+          <label for="product-price">ราคา (ใส่ข้อความ เช่น ฿120 / กก. หรือ สอบถามราคา)</label>
+          <input id="product-price" type="text" placeholder="฿120 / กก.">
+        </div>
+        <div class="form-field">
+          <label for="product-image">รูปภาพ</label>
+          <input id="product-image" type="file" accept="image/*">
+          <img id="product-image-preview" class="admin-preview" style="display:none;">
+        </div>
+        <div class="admin-form-actions">
+          <button id="product-save-btn" class="btn-primary">บันทึกรายการ</button>
+          <button id="product-cancel-btn" class="btn-outline" style="display:none; color:var(--green-800); border-color:var(--green-800);">ยกเลิกแก้ไข</button>
+        </div>
+        <p id="product-form-msg" class="admin-msg"></p>
+      </div>
+
+      <div class="admin-list-wrap">
+        <h4>สินค้า</h4>
+        <div id="product-list-product" class="admin-list"></div>
+        <h4 style="margin-top:24px;">บริการ</h4>
+        <div id="product-list-service" class="admin-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Q&A TAB ============ -->
+  <section id="tab-qa" class="container admin-panel" style="display:none;">
+    <div id="qa-admin-list" class="admin-list"></div>
+  </section>
+</div>
+
+<script src="js/admin.js"></script>
+</body>
+</html>
