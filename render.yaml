@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: rakpana-website
+    name: mpace
     runtime: python
     plan: free
     rootDir: backend
