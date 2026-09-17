@@ -1,3 +1,4 @@
+import json
 import os
 import secrets
 import smtplib
@@ -96,6 +97,25 @@ def close_db(exception=None):
         db.close()
 
 
+def _images_to_db(images):
+    """A list of image URLs/paths -> the JSON string stored in the images column."""
+    if not isinstance(images, list):
+        return json.dumps([])
+    cleaned = [str(u).strip() for u in images if isinstance(u, str) and str(u).strip()]
+    return json.dumps(cleaned)
+
+
+def _row_with_images(row):
+    """A sqlite3.Row (or dict) with a JSON `images` column -> a plain dict with
+    `images` decoded back into a real list, for clean JSON responses."""
+    d = dict(row)
+    try:
+        d["images"] = json.loads(d.get("images") or "[]")
+    except (TypeError, ValueError):
+        d["images"] = []
+    return d
+
+
 def init_db():
     with sqlite3.connect(DB_PATH) as db:
         db.execute(
@@ -117,7 +137,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
                 excerpt TEXT NOT NULL,
-                image_path TEXT,
+                images TEXT NOT NULL DEFAULT '[]',
                 published_at TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
@@ -131,7 +151,31 @@ def init_db():
                 name TEXT NOT NULL,
                 description TEXT NOT NULL,
                 price_text TEXT,
-                image_path TEXT,
+                images TEXT NOT NULL DEFAULT '[]',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        # ============ SERVICES (rich profiles: tour / guide / restaurant /
+        # massage / driver) — replaces the old single "service" kind on
+        # products. service_type-specific fields simply stay NULL for
+        # types that don't use them.
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS services (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                service_type TEXT NOT NULL CHECK (service_type IN
+                    ('tour', 'guide', 'restaurant', 'massage', 'driver')),
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                images TEXT NOT NULL DEFAULT '[]',
+                price_text TEXT,
+                schedule_text TEXT,
+                includes_text TEXT,
+                languages TEXT,
+                license_no TEXT,
+                awards TEXT,
                 sort_order INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             )
@@ -145,7 +189,20 @@ def init_db():
                 name TEXT NOT NULL,
                 tag TEXT,
                 description TEXT NOT NULL,
-                image_path TEXT,
+                images TEXT NOT NULL DEFAULT '[]',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS nearby_attractions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                area_tag TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                images TEXT NOT NULL DEFAULT '[]',
                 sort_order INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             )
@@ -156,34 +213,105 @@ def init_db():
             CREATE TABLE IF NOT EXISTS calendar_months (
                 month_index INTEGER PRIMARY KEY,
                 label TEXT NOT NULL,
-                tradition_title TEXT,
-                tradition_desc TEXT,
-                activity_title TEXT,
-                activity_desc TEXT,
-                products TEXT
+                traditions TEXT NOT NULL DEFAULT '[]',
+                activities TEXT NOT NULL DEFAULT '[]',
+                products TEXT,
+                images TEXT NOT NULL DEFAULT '[]'
             )
             """
         )
         db.commit()
 
-        # Seed the products/services table once, from what is already live on
-        # the site, so the admin panel starts populated instead of empty.
+        # Migrate calendar_months from the old one-tradition/one-activity
+        # schema to the new traditions[]/activities[] lists, if an older
+        # database is being reused. Preserves every other table untouched.
+        existing_cols = {row[1] for row in db.execute("PRAGMA table_info(calendar_months)").fetchall()}
+        if "tradition_title" in existing_cols:
+            old_rows = db.execute(
+                "SELECT month_index, label, tradition_title, tradition_desc, "
+                "activity_title, activity_desc, products, images FROM calendar_months"
+            ).fetchall()
+            db.execute("ALTER TABLE calendar_months RENAME TO calendar_months_old")
+            db.execute(
+                """
+                CREATE TABLE calendar_months (
+                    month_index INTEGER PRIMARY KEY,
+                    label TEXT NOT NULL,
+                    traditions TEXT NOT NULL DEFAULT '[]',
+                    activities TEXT NOT NULL DEFAULT '[]',
+                    products TEXT,
+                    images TEXT NOT NULL DEFAULT '[]'
+                )
+                """
+            )
+            for r in old_rows:
+                traditions = [{"title": r[2], "desc": r[3] or ""}] if r[2] else []
+                activities = [{"title": r[4], "desc": r[5] or ""}] if r[4] else []
+                db.execute(
+                    "INSERT INTO calendar_months (month_index, label, traditions, activities, products, images) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (r[0], r[1], json.dumps(traditions), json.dumps(activities), r[6], r[7]),
+                )
+            db.execute("DROP TABLE calendar_months_old")
+            db.commit()
+
+        # Seed the products table once, from what is already live on the
+        # site, so the admin panel starts populated instead of empty.
         seeded = db.execute("SELECT COUNT(*) FROM products").fetchone()[0]
         if seeded == 0:
             now = datetime.now(timezone.utc).isoformat()
             seed_rows = [
-                ("product", "ข้าวกล้องอินทรีย์", "ข้าวพันธุ์พื้นเมืองคัดพิเศษ ปลอดสารพิษ 100% ปลูกด้วยน้ำธรรมชาติ", "฿120 / กก.", None, 1),
-                ("product", "ชาสมุนไพรป่า", "ชาสมุนไพรอบแห้ง กลิ่นหอมสดชื่น รสชาตินุ่มละมุน เสริมสร้างภูมิคุ้มกัน", "฿180 / กล่อง", None, 2),
-                ("product", "ชะลอมจักสานไม้ไผ่", "งานฝีมือประณีตจากภูมิปัญญาผู้เฒ่าผู้แก่แม่หอพระ ใช้วัสดุธรรมชาติ", "฿85 / ชิ้น", "images/product-baskets.jpg", 3),
-                ("product", "ไข่เค็ม/ไข่ต้มสมุนไพร", "ไข่แปรรูปพื้นบ้าน คัดสดจากฟาร์มชุมชน พร้อมผงโรยข้าวสูตรพื้นเมือง", "฿50 / แพ็ค", "images/product-eggs.jpg", 4),
-                ("product", "ผลไม้แช่อิ่ม", "ผลไม้พื้นบ้านแปรรูปแช่อิ่ม รสชาติหวานละมุน เก็บได้นาน", "฿35 / กระปุก", "images/product-preserves.jpg", 5),
-                ("product", "ผักสดตามฤดูกาล", "ผักปลอดสารพิษเก็บสดจากแปลงเกษตรของสมาชิกชุมชน", "สอบถามราคาหน้าร้าน", "images/product-vegetables.jpg", 6),
-                ("service", "เที่ยววิถีชุมชนกับไกด์ท้องถิ่น", "รอบ 9.00–13.30 น. หรือ 12.00–16.00 น. — ทำสวยดอกไม้สักการะ กราบไหว้พระพุทธรูปอายุ 300 ปี เยี่ยมชมต้นตะเคียนโบราณ เรียนรู้ภูมิปัญญาการทำถั่วเน่าสูตรอุ้ยเอื้อยแม่เฒ่า 100 ปี พร้อมรับประทานอาหารพื้นบ้านกลางวัน", "฿1,150 / ท่าน", "images/service-flyer.jpg", 1),
+                ("product", "ข้าวกล้องอินทรีย์", "ข้าวพันธุ์พื้นเมืองคัดพิเศษ ปลอดสารพิษ 100% ปลูกด้วยน้ำธรรมชาติ", "฿120 / กก.", [], 1),
+                ("product", "ชาสมุนไพรป่า", "ชาสมุนไพรอบแห้ง กลิ่นหอมสดชื่น รสชาตินุ่มละมุน เสริมสร้างภูมิคุ้มกัน", "฿180 / กล่อง", [], 2),
+                ("product", "ชะลอมจักสานไม้ไผ่", "งานฝีมือประณีตจากภูมิปัญญาผู้เฒ่าผู้แก่แม่หอพระ ใช้วัสดุธรรมชาติ", "฿85 / ชิ้น", ["images/product-baskets.jpg"], 3),
+                ("product", "ไข่เค็ม/ไข่ต้มสมุนไพร", "ไข่แปรรูปพื้นบ้าน คัดสดจากฟาร์มชุมชน พร้อมผงโรยข้าวสูตรพื้นเมือง", "฿50 / แพ็ค", ["images/product-eggs.jpg"], 4),
+                ("product", "ผลไม้แช่อิ่ม", "ผลไม้พื้นบ้านแปรรูปแช่อิ่ม รสชาติหวานละมุน เก็บได้นาน", "฿35 / กระปุก", ["images/product-preserves.jpg"], 5),
+                ("product", "ผักสดตามฤดูกาล", "ผักปลอดสารพิษเก็บสดจากแปลงเกษตรของสมาชิกชุมชน", "สอบถามราคาหน้าร้าน", ["images/product-vegetables.jpg"], 6),
             ]
             db.executemany(
-                "INSERT INTO products (kind, name, description, price_text, image_path, sort_order, created_at) "
+                "INSERT INTO products (kind, name, description, price_text, images, sort_order, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [(*row, now) for row in seed_rows],
+                [(row[0], row[1], row[2], row[3], _images_to_db(row[4]), row[5], now) for row in seed_rows],
+            )
+            db.commit()
+
+        # Seed the services table once with the one real tour service already
+        # on the site (as service_type "tour").
+        seeded = db.execute("SELECT COUNT(*) FROM services").fetchone()[0]
+        if seeded == 0:
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                "INSERT INTO services (service_type, name, description, images, price_text, "
+                "schedule_text, includes_text, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "tour",
+                    "เที่ยววิถีชุมชนกับไกด์ท้องถิ่น",
+                    "ทำสวยดอกไม้สักการะ กราบไหว้พระพุทธรูปอายุ 300 ปี เยี่ยมชมต้นตะเคียนโบราณ "
+                    "เรียนรู้ภูมิปัญญาการทำถั่วเน่าสูตรอุ้ยเอื้อยแม่เฒ่า 100 ปี พร้อมรับประทานอาหารพื้นบ้านกลางวัน",
+                    _images_to_db(["images/service-flyer.jpg"]),
+                    "฿1,150 / ท่าน",
+                    "ครึ่งวัน — รอบ 9.00–13.30 น. หรือ 12.00–16.00 น.",
+                    "รวม: ไกด์นำเที่ยว, อาหารกลางวัน, ค่ากิจกรรม | ไม่รวม: ค่าเดินทางมาจุดนัดพบ",
+                    1,
+                    now,
+                ),
+            )
+            db.commit()
+
+        # Seed nearby_attractions once, from what is already live on the site.
+        seeded = db.execute("SELECT COUNT(*) FROM nearby_attractions").fetchone()[0]
+        if seeded == 0:
+            now = datetime.now(timezone.utc).isoformat()
+            nearby_rows = [
+                ("อ.แม่แตง", "ล่องแพแม่น้ำแม่แตง", "กิจกรรมล่องแพลำน้ำแม่แตง ตื่นเต้นท่ามกลางหุบเขาและป่าเขียว", [], 1),
+                ("อ.แม่แตง", "ปางช้างแม่แตง", "ศูนย์อนุรักษ์และกิจกรรมกับช้างในบรรยากาศธรรมชาติ", [], 2),
+                ("อ.สันทราย", "มหาวิทยาลัยแม่โจ้", "แคมปัสสีเขียวชื่อดัง เที่ยวชมทุ่งดอกไม้เมืองหนาวตามฤดูกาล", [], 3),
+                ("อ.พร้าว", "ดอยม่อนล้าน", "จุดชมวิวทะเลหมอกและพระอาทิตย์ขึ้นชื่อดังของเชียงใหม่ตอนเหนือ", [], 4),
+            ]
+            db.executemany(
+                "INSERT INTO nearby_attractions (area_tag, name, description, images, sort_order, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                [(row[0], row[1], row[2], _images_to_db(row[3]), row[4], now) for row in nearby_rows],
             )
             db.commit()
 
@@ -194,24 +322,24 @@ def init_db():
             attraction_rows = [
                 ("nature", "ทุ่งนาอินทรีย์แม่หอพระ", "ธรรมชาติ",
                  "เดินเล่นชมทุ่งนาเขียวขจีสุดลูกหูลูกตา ถ่ายรูปคู่ป้ายชื่อตำบลกลางแปลงนา",
-                 "images/hero-field.jpg", 1),
+                 ["images/hero-field.jpg"], 1),
                 ("culture", "วัดบ้านกาด", "วัฒนธรรม · ศรัทธา",
                  "กราบไหว้พระพุทธรูปโบราณอายุ 300 ปี และเยี่ยมชมต้นตะเคียนอายุหลายร้อยปี",
-                 None, 2),
+                 [], 2),
                 ("nature", "น้ำตกหินปูน", "ธรรมชาติ",
                  "สายน้ำไหลผ่านชั้นหินปูนกลางป่าร่มรื่น เหมาะแก่การพักผ่อนและถ่ายภาพ",
-                 "images/attraction-waterfall.jpg", 3),
+                 ["images/attraction-waterfall.jpg"], 3),
                 ("nature", "บ่อน้ำสีมรกต", "ธรรมชาติ",
                  "แอ่งน้ำใสสะท้อนสีเขียวมรกตกลางป่า บรรยากาศเงียบสงบร่มรื่น",
-                 "images/attraction-emerald.jpg", 4),
+                 ["images/attraction-emerald.jpg"], 4),
                 ("culture", "ถ้ำศักดิ์สิทธิ์", "วัฒนธรรม · ศรัทธา",
                  "ถ้ำธรรมชาติที่ประดิษฐานพระพุทธรูป เป็นที่เคารพสักการะของคนในพื้นที่",
-                 "images/attraction-cave.jpg", 5),
+                 ["images/attraction-cave.jpg"], 5),
             ]
             db.executemany(
-                "INSERT INTO attractions (category, name, tag, description, image_path, sort_order, created_at) "
+                "INSERT INTO attractions (category, name, tag, description, images, sort_order, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [(*row, now) for row in attraction_rows],
+                [(row[0], row[1], row[2], row[3], _images_to_db(row[4]), row[5], now) for row in attraction_rows],
             )
             db.commit()
 
@@ -222,28 +350,24 @@ def init_db():
                              "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
             month_data = {
                 0: {
-                    "tradition_title": "ตานข้าวใหม่",
-                    "tradition_desc": "ประเพณีถวายข้าวที่เพิ่งเกี่ยวใหม่แด่พระสงฆ์ตามวิถีชาวพุทธล้านนา เพื่อความเป็นสิริมงคลและความกตัญญูต่อแม่โพสพ",
-                    "activity_title": "ปิ้งข้าวจี่โบราณ",
-                    "activity_desc": "นึ่งข้าวใหม่ด้วยหวดไม้ไผ่แบบดั้งเดิม ปั้นและปิ้งข้าวจี่ทาไข่เตาถ่านหอมกรุ่น ร่วมทำบุญตานข้าวใหม่ยามเช้ากับคนในชุมชน",
+                    "traditions": [{"title": "ตานข้าวใหม่", "desc": "ประเพณีถวายข้าวที่เพิ่งเกี่ยวใหม่แด่พระสงฆ์ตามวิถีชาวพุทธล้านนา เพื่อความเป็นสิริมงคลและความกตัญญูต่อแม่โพสพ"}],
+                    "activities": [{"title": "ปิ้งข้าวจี่โบราณ", "desc": "นึ่งข้าวใหม่ด้วยหวดไม้ไผ่แบบดั้งเดิม ปั้นและปิ้งข้าวจี่ทาไข่เตาถ่านหอมกรุ่น ร่วมทำบุญตานข้าวใหม่ยามเช้ากับคนในชุมชน"}],
                     "products": "ข้าวเหนียวพันธุ์พื้นเมือง, ข้าวหอมอินทรีย์แม่หอพระ",
                 },
                 3: {
-                    "tradition_title": "ปี๋ใหม่เมือง & แห่ไม้ค้ำสะหลี",
-                    "tradition_desc": "สืบสานป๋าเวณีสงกรานต์ล้านนา ร่วมขบวนแห่ไม้ค้ำต้นโพธิ์เพื่อค้ำจุนพระศาสนาและชีวิตให้อยู่ร่มเย็นเป็นสุข",
-                    "activity_title": "ตกแต่งไม้ค้ำ & สรงน้ำพระ",
-                    "activity_desc": "ประดิษฐ์สวยดอกและตกแต่งไม้ค้ำสะหลี รดน้ำดำหัวผู้เฒ่าผู้แก่ด้วยน้ำขมิ้นส้มป่อย ร่วมขบวนแห่ดนตรีพื้นเมืองล้านนา",
+                    "traditions": [{"title": "ปี๋ใหม่เมือง & แห่ไม้ค้ำสะหลี", "desc": "สืบสานป๋าเวณีสงกรานต์ล้านนา ร่วมขบวนแห่ไม้ค้ำต้นโพธิ์เพื่อค้ำจุนพระศาสนาและชีวิตให้อยู่ร่มเย็นเป็นสุข"}],
+                    "activities": [{"title": "ตกแต่งไม้ค้ำ & สรงน้ำพระ", "desc": "ประดิษฐ์สวยดอกและตกแต่งไม้ค้ำสะหลี รดน้ำดำหัวผู้เฒ่าผู้แก่ด้วยน้ำขมิ้นส้มป่อย ร่วมขบวนแห่ดนตรีพื้นเมืองล้านนา"}],
                     "products": "มะม่วงพื้นเมือง, พืชผักและดอกไม้หน้าร้อน",
                 },
             }
             rows = []
             for i, label in enumerate(month_labels):
                 d = month_data.get(i, {})
-                rows.append((i, label, d.get("tradition_title"), d.get("tradition_desc"),
-                             d.get("activity_title"), d.get("activity_desc"), d.get("products")))
+                rows.append((i, label, json.dumps(d.get("traditions", [])), json.dumps(d.get("activities", [])),
+                             d.get("products"), _images_to_db([])))
             db.executemany(
-                "INSERT INTO calendar_months (month_index, label, tradition_title, tradition_desc, "
-                "activity_title, activity_desc, products) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO calendar_months (month_index, label, traditions, activities, products, images) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 rows,
             )
             db.commit()
@@ -257,6 +381,18 @@ def health():
 # ============ SERVE THE FRONTEND (same Flask app, same origin) ============
 # Keeps this to one deployable service: no separate static host, no CORS
 # headaches, no hardcoded API URL to keep in sync between environments.
+#
+# no-cache on every response: this site is actively edited (HTML/CSS/JS
+# change often during development, and content changes via the admin
+# panel), so a browser silently serving a stale cached copy caused real
+# confusion more than once. Bandwidth cost is irrelevant at this site's
+# scale, so we simply always revalidate.
+
+@app.after_request
+def add_no_cache_headers(response):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
 
 @app.get("/")
 def serve_index():
@@ -385,7 +521,7 @@ def serve_upload(filename):
 def list_stories():
     db = get_db()
     rows = db.execute("SELECT * FROM stories ORDER BY published_at DESC, id DESC").fetchall()
-    return jsonify([dict(row) for row in rows])
+    return jsonify([_row_with_images(row) for row in rows])
 
 
 @app.post("/api/stories")
@@ -394,7 +530,7 @@ def create_story():
     payload = request.get_json(silent=True) or {}
     title = (payload.get("title") or "").strip()
     excerpt = (payload.get("excerpt") or "").strip()
-    image_path = (payload.get("image_path") or "").strip() or None
+    images = _images_to_db(payload.get("images"))
     published_at = (payload.get("published_at") or "").strip() or datetime.now(timezone.utc).date().isoformat()
 
     if not title or not excerpt:
@@ -402,8 +538,8 @@ def create_story():
 
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO stories (title, excerpt, image_path, published_at, created_at) VALUES (?, ?, ?, ?, ?)",
-        (title, excerpt, image_path, published_at, datetime.now(timezone.utc).isoformat()),
+        "INSERT INTO stories (title, excerpt, images, published_at, created_at) VALUES (?, ?, ?, ?, ?)",
+        (title, excerpt, images, published_at, datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
     return jsonify({"success": True, "id": cursor.lastrowid}), 201
@@ -415,7 +551,7 @@ def update_story(story_id):
     payload = request.get_json(silent=True) or {}
     title = (payload.get("title") or "").strip()
     excerpt = (payload.get("excerpt") or "").strip()
-    image_path = (payload.get("image_path") or "").strip() or None
+    images = _images_to_db(payload.get("images"))
     published_at = (payload.get("published_at") or "").strip()
 
     if not title or not excerpt or not published_at:
@@ -423,8 +559,8 @@ def update_story(story_id):
 
     db = get_db()
     result = db.execute(
-        "UPDATE stories SET title = ?, excerpt = ?, image_path = ?, published_at = ? WHERE id = ?",
-        (title, excerpt, image_path, published_at, story_id),
+        "UPDATE stories SET title = ?, excerpt = ?, images = ?, published_at = ? WHERE id = ?",
+        (title, excerpt, images, published_at, story_id),
     )
     db.commit()
     if result.rowcount == 0:
@@ -443,22 +579,21 @@ def delete_story(story_id):
     return jsonify({"success": True})
 
 
-# ============ PRODUCTS & SERVICES ============
+# ============ PRODUCTS ============
 
 @app.get("/api/products")
 def list_products():
     db = get_db()
-    rows = db.execute("SELECT * FROM products ORDER BY kind, sort_order, id").fetchall()
-    return jsonify([dict(row) for row in rows])
+    rows = db.execute("SELECT * FROM products WHERE kind = 'product' ORDER BY sort_order, id").fetchall()
+    return jsonify([_row_with_images(row) for row in rows])
 
 
 def _parse_product_payload(payload):
     return {
-        "kind": (payload.get("kind") or "").strip(),
         "name": (payload.get("name") or "").strip(),
         "description": (payload.get("description") or "").strip(),
         "price_text": (payload.get("price_text") or "").strip() or None,
-        "image_path": (payload.get("image_path") or "").strip() or None,
+        "images": _images_to_db(payload.get("images")),
         "sort_order": int(payload.get("sort_order") or 0),
     }
 
@@ -467,14 +602,14 @@ def _parse_product_payload(payload):
 @require_admin
 def create_product():
     data = _parse_product_payload(request.get_json(silent=True) or {})
-    if data["kind"] not in ("product", "service") or not data["name"] or not data["description"]:
-        return jsonify({"success": False, "error": "กรุณากรอกประเภท ชื่อ และรายละเอียดให้ครบถ้วน"}), 400
+    if not data["name"] or not data["description"]:
+        return jsonify({"success": False, "error": "กรุณากรอกชื่อและรายละเอียดให้ครบถ้วน"}), 400
 
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO products (kind, name, description, price_text, image_path, sort_order, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (data["kind"], data["name"], data["description"], data["price_text"], data["image_path"],
+        "INSERT INTO products (kind, name, description, price_text, images, sort_order, created_at) "
+        "VALUES ('product', ?, ?, ?, ?, ?, ?)",
+        (data["name"], data["description"], data["price_text"], data["images"],
          data["sort_order"], datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
@@ -485,14 +620,14 @@ def create_product():
 @require_admin
 def update_product(product_id):
     data = _parse_product_payload(request.get_json(silent=True) or {})
-    if data["kind"] not in ("product", "service") or not data["name"] or not data["description"]:
-        return jsonify({"success": False, "error": "กรุณากรอกประเภท ชื่อ และรายละเอียดให้ครบถ้วน"}), 400
+    if not data["name"] or not data["description"]:
+        return jsonify({"success": False, "error": "กรุณากรอกชื่อและรายละเอียดให้ครบถ้วน"}), 400
 
     db = get_db()
     result = db.execute(
-        "UPDATE products SET kind = ?, name = ?, description = ?, price_text = ?, image_path = ?, sort_order = ? "
-        "WHERE id = ?",
-        (data["kind"], data["name"], data["description"], data["price_text"], data["image_path"],
+        "UPDATE products SET name = ?, description = ?, price_text = ?, images = ?, sort_order = ? "
+        "WHERE id = ? AND kind = 'product'",
+        (data["name"], data["description"], data["price_text"], data["images"],
          data["sort_order"], product_id),
     )
     db.commit()
@@ -505,10 +640,91 @@ def update_product(product_id):
 @require_admin
 def delete_product(product_id):
     db = get_db()
-    result = db.execute("DELETE FROM products WHERE id = ?", (product_id,))
+    result = db.execute("DELETE FROM products WHERE id = ? AND kind = 'product'", (product_id,))
     db.commit()
     if result.rowcount == 0:
         return jsonify({"success": False, "error": "ไม่พบรายการนี้"}), 404
+    return jsonify({"success": True})
+
+
+# ============ SERVICES (tour / guide / restaurant / massage / driver) ============
+
+SERVICE_TYPES = ("tour", "guide", "restaurant", "massage", "driver")
+
+
+@app.get("/api/services")
+def list_services():
+    db = get_db()
+    rows = db.execute("SELECT * FROM services ORDER BY service_type, sort_order, id").fetchall()
+    return jsonify([_row_with_images(row) for row in rows])
+
+
+def _parse_service_payload(payload):
+    return {
+        "service_type": (payload.get("service_type") or "").strip(),
+        "name": (payload.get("name") or "").strip(),
+        "description": (payload.get("description") or "").strip(),
+        "images": _images_to_db(payload.get("images")),
+        "price_text": (payload.get("price_text") or "").strip() or None,
+        "schedule_text": (payload.get("schedule_text") or "").strip() or None,
+        "includes_text": (payload.get("includes_text") or "").strip() or None,
+        "languages": (payload.get("languages") or "").strip() or None,
+        "license_no": (payload.get("license_no") or "").strip() or None,
+        "awards": (payload.get("awards") or "").strip() or None,
+        "sort_order": int(payload.get("sort_order") or 0),
+    }
+
+
+@app.post("/api/services")
+@require_admin
+def create_service():
+    data = _parse_service_payload(request.get_json(silent=True) or {})
+    if data["service_type"] not in SERVICE_TYPES or not data["name"] or not data["description"]:
+        return jsonify({"success": False, "error": "กรุณากรอกประเภทบริการ ชื่อ และรายละเอียดให้ครบถ้วน"}), 400
+
+    db = get_db()
+    cursor = db.execute(
+        "INSERT INTO services (service_type, name, description, images, price_text, schedule_text, "
+        "includes_text, languages, license_no, awards, sort_order, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (data["service_type"], data["name"], data["description"], data["images"], data["price_text"],
+         data["schedule_text"], data["includes_text"], data["languages"], data["license_no"],
+         data["awards"], data["sort_order"], datetime.now(timezone.utc).isoformat()),
+    )
+    db.commit()
+    return jsonify({"success": True, "id": cursor.lastrowid}), 201
+
+
+@app.put("/api/services/<int:service_id>")
+@require_admin
+def update_service(service_id):
+    data = _parse_service_payload(request.get_json(silent=True) or {})
+    if data["service_type"] not in SERVICE_TYPES or not data["name"] or not data["description"]:
+        return jsonify({"success": False, "error": "กรุณากรอกประเภทบริการ ชื่อ และรายละเอียดให้ครบถ้วน"}), 400
+
+    db = get_db()
+    result = db.execute(
+        "UPDATE services SET service_type = ?, name = ?, description = ?, images = ?, price_text = ?, "
+        "schedule_text = ?, includes_text = ?, languages = ?, license_no = ?, awards = ?, sort_order = ? "
+        "WHERE id = ?",
+        (data["service_type"], data["name"], data["description"], data["images"], data["price_text"],
+         data["schedule_text"], data["includes_text"], data["languages"], data["license_no"],
+         data["awards"], data["sort_order"], service_id),
+    )
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบบริการนี้"}), 404
+    return jsonify({"success": True})
+
+
+@app.delete("/api/services/<int:service_id>")
+@require_admin
+def delete_service(service_id):
+    db = get_db()
+    result = db.execute("DELETE FROM services WHERE id = ?", (service_id,))
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบบริการนี้"}), 404
     return jsonify({"success": True})
 
 
@@ -518,7 +734,7 @@ def delete_product(product_id):
 def list_attractions():
     db = get_db()
     rows = db.execute("SELECT * FROM attractions ORDER BY sort_order, id").fetchall()
-    return jsonify([dict(row) for row in rows])
+    return jsonify([_row_with_images(row) for row in rows])
 
 
 def _parse_attraction_payload(payload):
@@ -527,7 +743,7 @@ def _parse_attraction_payload(payload):
         "name": (payload.get("name") or "").strip(),
         "tag": (payload.get("tag") or "").strip() or None,
         "description": (payload.get("description") or "").strip(),
-        "image_path": (payload.get("image_path") or "").strip() or None,
+        "images": _images_to_db(payload.get("images")),
         "sort_order": int(payload.get("sort_order") or 0),
     }
 
@@ -541,9 +757,9 @@ def create_attraction():
 
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO attractions (category, name, tag, description, image_path, sort_order, created_at) "
+        "INSERT INTO attractions (category, name, tag, description, images, sort_order, created_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (data["category"], data["name"], data["tag"], data["description"], data["image_path"],
+        (data["category"], data["name"], data["tag"], data["description"], data["images"],
          data["sort_order"], datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
@@ -559,9 +775,9 @@ def update_attraction(attraction_id):
 
     db = get_db()
     result = db.execute(
-        "UPDATE attractions SET category = ?, name = ?, tag = ?, description = ?, image_path = ?, "
+        "UPDATE attractions SET category = ?, name = ?, tag = ?, description = ?, images = ?, "
         "sort_order = ? WHERE id = ?",
-        (data["category"], data["name"], data["tag"], data["description"], data["image_path"],
+        (data["category"], data["name"], data["tag"], data["description"], data["images"],
          data["sort_order"], attraction_id),
     )
     db.commit()
@@ -581,13 +797,104 @@ def delete_attraction(attraction_id):
     return jsonify({"success": True})
 
 
+# ============ NEARBY ATTRACTIONS ============
+
+@app.get("/api/nearby-attractions")
+def list_nearby_attractions():
+    db = get_db()
+    rows = db.execute("SELECT * FROM nearby_attractions ORDER BY sort_order, id").fetchall()
+    return jsonify([_row_with_images(row) for row in rows])
+
+
+def _parse_nearby_payload(payload):
+    return {
+        "area_tag": (payload.get("area_tag") or "").strip(),
+        "name": (payload.get("name") or "").strip(),
+        "description": (payload.get("description") or "").strip(),
+        "images": _images_to_db(payload.get("images")),
+        "sort_order": int(payload.get("sort_order") or 0),
+    }
+
+
+@app.post("/api/nearby-attractions")
+@require_admin
+def create_nearby_attraction():
+    data = _parse_nearby_payload(request.get_json(silent=True) or {})
+    if not data["area_tag"] or not data["name"] or not data["description"]:
+        return jsonify({"success": False, "error": "กรุณากรอกพื้นที่ ชื่อ และรายละเอียดให้ครบถ้วน"}), 400
+
+    db = get_db()
+    cursor = db.execute(
+        "INSERT INTO nearby_attractions (area_tag, name, description, images, sort_order, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (data["area_tag"], data["name"], data["description"], data["images"],
+         data["sort_order"], datetime.now(timezone.utc).isoformat()),
+    )
+    db.commit()
+    return jsonify({"success": True, "id": cursor.lastrowid}), 201
+
+
+@app.put("/api/nearby-attractions/<int:item_id>")
+@require_admin
+def update_nearby_attraction(item_id):
+    data = _parse_nearby_payload(request.get_json(silent=True) or {})
+    if not data["area_tag"] or not data["name"] or not data["description"]:
+        return jsonify({"success": False, "error": "กรุณากรอกพื้นที่ ชื่อ และรายละเอียดให้ครบถ้วน"}), 400
+
+    db = get_db()
+    result = db.execute(
+        "UPDATE nearby_attractions SET area_tag = ?, name = ?, description = ?, images = ?, sort_order = ? "
+        "WHERE id = ?",
+        (data["area_tag"], data["name"], data["description"], data["images"], data["sort_order"], item_id),
+    )
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบรายการนี้"}), 404
+    return jsonify({"success": True})
+
+
+@app.delete("/api/nearby-attractions/<int:item_id>")
+@require_admin
+def delete_nearby_attraction(item_id):
+    db = get_db()
+    result = db.execute("DELETE FROM nearby_attractions WHERE id = ?", (item_id,))
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบรายการนี้"}), 404
+    return jsonify({"success": True})
+
+
 # ============ CALENDAR (12 MONTHS) ============
 
 @app.get("/api/calendar")
 def list_calendar():
     db = get_db()
     rows = db.execute("SELECT * FROM calendar_months ORDER BY month_index").fetchall()
-    return jsonify([dict(row) for row in rows])
+    result = []
+    for row in rows:
+        d = _row_with_images(row)
+        for key in ("traditions", "activities"):
+            try:
+                d[key] = json.loads(d.get(key) or "[]")
+            except (TypeError, ValueError):
+                d[key] = []
+        result.append(d)
+    return jsonify(result)
+
+
+def _clean_entry_list(raw):
+    """A list of {title, desc} from the request -> the same, minus blank entries."""
+    if not isinstance(raw, list):
+        return []
+    cleaned = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        title = (entry.get("title") or "").strip()
+        desc = (entry.get("desc") or "").strip()
+        if title or desc:
+            cleaned.append({"title": title, "desc": desc})
+    return cleaned
 
 
 @app.put("/api/calendar/<int:month_index>")
@@ -597,17 +904,16 @@ def update_calendar_month(month_index):
         return jsonify({"success": False, "error": "เดือนไม่ถูกต้อง"}), 400
 
     payload = request.get_json(silent=True) or {}
-    tradition_title = (payload.get("tradition_title") or "").strip() or None
-    tradition_desc = (payload.get("tradition_desc") or "").strip() or None
-    activity_title = (payload.get("activity_title") or "").strip() or None
-    activity_desc = (payload.get("activity_desc") or "").strip() or None
+    traditions = json.dumps(_clean_entry_list(payload.get("traditions")))
+    activities = json.dumps(_clean_entry_list(payload.get("activities")))
     products = (payload.get("products") or "").strip() or None
+    images = _images_to_db(payload.get("images"))
 
     db = get_db()
     result = db.execute(
-        "UPDATE calendar_months SET tradition_title = ?, tradition_desc = ?, activity_title = ?, "
-        "activity_desc = ?, products = ? WHERE month_index = ?",
-        (tradition_title, tradition_desc, activity_title, activity_desc, products, month_index),
+        "UPDATE calendar_months SET traditions = ?, activities = ?, products = ?, images = ? "
+        "WHERE month_index = ?",
+        (traditions, activities, products, images, month_index),
     )
     db.commit()
     if result.rowcount == 0:

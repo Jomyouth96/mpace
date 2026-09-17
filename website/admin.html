@@ -41,15 +41,17 @@
   </header>
 
   <div class="container admin-tabs">
-    <button class="pill-btn" data-tab="attractions">แหล่งท่องเที่ยว</button>
+    <button class="pill-btn active" data-tab="attractions">แหล่งท่องเที่ยว</button>
+    <button class="pill-btn" data-tab="nearby">แหล่งท่องเที่ยวใกล้เคียง</button>
     <button class="pill-btn" data-tab="calendar">ปฏิทินประสบการณ์</button>
-    <button class="pill-btn" data-tab="products">สินค้าและบริการ</button>
-    <button class="pill-btn active" data-tab="stories">เรื่องราว</button>
+    <button class="pill-btn" data-tab="products">สินค้า</button>
+    <button class="pill-btn" data-tab="services">บริการ</button>
+    <button class="pill-btn" data-tab="stories">เรื่องราว</button>
     <button class="pill-btn" data-tab="qa">คำถามจากผู้เยี่ยมชม</button>
   </div>
 
   <!-- ============ ATTRACTIONS TAB ============ -->
-  <section id="tab-attractions" class="container admin-panel" style="display:none;">
+  <section id="tab-attractions" class="container admin-panel">
     <div class="admin-grid">
       <div class="card admin-form">
         <h3 id="attraction-form-title">เพิ่มแหล่งท่องเที่ยวใหม่</h3>
@@ -74,9 +76,8 @@
           <textarea id="attraction-description" rows="4" placeholder="รายละเอียดสถานที่..."></textarea>
         </div>
         <div class="form-field">
-          <label for="attraction-image">รูปภาพ</label>
-          <input id="attraction-image" type="file" accept="image/*">
-          <img id="attraction-image-preview" class="admin-preview" style="display:none;">
+          <label>รูปภาพ (เพิ่มได้หลายรูป)</label>
+          <div id="attraction-images-picker"></div>
         </div>
         <div class="admin-form-actions">
           <button id="attraction-save-btn" class="btn-primary">บันทึกแหล่งท่องเที่ยว</button>
@@ -89,30 +90,59 @@
     </div>
   </section>
 
+  <!-- ============ NEARBY ATTRACTIONS TAB ============ -->
+  <section id="tab-nearby" class="container admin-panel" style="display:none;">
+    <div class="admin-grid">
+      <div class="card admin-form">
+        <h3 id="nearby-form-title">เพิ่มแหล่งท่องเที่ยวใกล้เคียงใหม่</h3>
+        <input type="hidden" id="nearby-id">
+        <div class="form-field">
+          <label for="nearby-area">พื้นที่/อำเภอ</label>
+          <input id="nearby-area" type="text" placeholder="เช่น อ.แม่แตง">
+        </div>
+        <div class="form-field">
+          <label for="nearby-name">ชื่อสถานที่</label>
+          <input id="nearby-name" type="text" placeholder="เช่น ล่องแพแม่น้ำแม่แตง">
+        </div>
+        <div class="form-field">
+          <label for="nearby-description">รายละเอียด</label>
+          <textarea id="nearby-description" rows="4" placeholder="รายละเอียดสถานที่..."></textarea>
+        </div>
+        <div class="form-field">
+          <label>รูปภาพ (เพิ่มได้หลายรูป)</label>
+          <div id="nearby-images-picker"></div>
+        </div>
+        <div class="admin-form-actions">
+          <button id="nearby-save-btn" class="btn-primary">บันทึก</button>
+          <button id="nearby-cancel-btn" class="btn-outline" style="display:none; color:var(--green-800); border-color:var(--green-800);">ยกเลิกแก้ไข</button>
+        </div>
+        <p id="nearby-form-msg" class="admin-msg"></p>
+      </div>
+
+      <div id="nearby-list" class="admin-list"></div>
+    </div>
+  </section>
+
   <!-- ============ CALENDAR TAB ============ -->
   <section id="tab-calendar" class="container admin-panel" style="display:none;">
-    <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">เลือกเดือนที่ต้องการแก้ไข แล้วกรอกข้อมูล — ปล่อยว่างทุกช่องถ้าต้องการให้เดือนนั้นแสดงเป็น "กำลังอัปเดตข้อมูล" บนเว็บไซต์</p>
+    <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">เลือกเดือนที่ต้องการแก้ไข แล้วกรอกข้อมูล — ปล่อยว่างช่องไหนก็ได้ ถ้าไม่มีข้อมูลส่วนนั้นเว็บไซต์จะไม่แสดงบล็อกนั้นให้ (เช่น ถ้าไม่มีประเพณี ก็จะโชว์แค่กิจกรรม/สินค้าเกษตรที่มีข้อมูล)</p>
     <div class="pill-row" id="calendar-month-buttons"></div>
     <div class="card admin-form" style="max-width:640px;">
       <h3 id="calendar-form-title">แก้ไขข้อมูลเดือน</h3>
       <div class="form-field">
-        <label for="cal-tradition-title-input">ชื่อประเพณีประจำเดือน</label>
-        <input id="cal-tradition-title-input" type="text" placeholder="เช่น ตานข้าวใหม่">
+        <label>รูปภาพประจำเดือน (เพิ่มได้หลายรูป)</label>
+        <div id="calendar-images-picker"></div>
       </div>
       <div class="form-field">
-        <label for="cal-tradition-desc-input">รายละเอียดประเพณี</label>
-        <textarea id="cal-tradition-desc-input" rows="3"></textarea>
+        <label>ประเพณีประจำเดือน (เพิ่มได้มากกว่า 1 รายการ)</label>
+        <div id="cal-traditions-repeat"></div>
       </div>
       <div class="form-field">
-        <label for="cal-activity-title-input">ชื่อกิจกรรมแนะนำ</label>
-        <input id="cal-activity-title-input" type="text" placeholder="เช่น ปิ้งข้าวจี่โบราณ">
+        <label>กิจกรรมแนะนำ (เพิ่มได้มากกว่า 1 รายการ)</label>
+        <div id="cal-activities-repeat"></div>
       </div>
       <div class="form-field">
-        <label for="cal-activity-desc-input">รายละเอียดกิจกรรม</label>
-        <textarea id="cal-activity-desc-input" rows="3"></textarea>
-      </div>
-      <div class="form-field">
-        <label for="cal-products-input">สินค้าเกษตรประจำเดือน (คั่นด้วยเครื่องหมายจุลภาค ,)</label>
+        <label for="cal-products-input">สินค้าเกษตรประจำเดือน (คั่นด้วยเครื่องหมายจุลภาค , เว้นว่างถ้าไม่มี)</label>
         <input id="cal-products-input" type="text" placeholder="เช่น ข้าวเหนียวพันธุ์พื้นเมือง, ข้าวหอมอินทรีย์แม่หอพระ">
       </div>
       <div class="admin-form-actions">
@@ -122,8 +152,106 @@
     </div>
   </section>
 
+  <!-- ============ PRODUCTS TAB ============ -->
+  <section id="tab-products" class="container admin-panel" style="display:none;">
+    <div class="admin-grid">
+      <div class="card admin-form">
+        <h3 id="product-form-title">เพิ่มสินค้าใหม่</h3>
+        <input type="hidden" id="product-id">
+        <div class="form-field">
+          <label for="product-name">ชื่อสินค้า</label>
+          <input id="product-name" type="text" placeholder="เช่น ข้าวกล้องอินทรีย์">
+        </div>
+        <div class="form-field">
+          <label for="product-description">รายละเอียด</label>
+          <textarea id="product-description" rows="4" placeholder="รายละเอียดสินค้า..."></textarea>
+        </div>
+        <div class="form-field">
+          <label for="product-price">ราคา (ใส่ข้อความ เช่น ฿120 / กก. หรือ สอบถามราคา)</label>
+          <input id="product-price" type="text" placeholder="฿120 / กก.">
+        </div>
+        <div class="form-field">
+          <label>รูปภาพ (เพิ่มได้หลายรูป)</label>
+          <div id="product-images-picker"></div>
+        </div>
+        <div class="admin-form-actions">
+          <button id="product-save-btn" class="btn-primary">บันทึกสินค้า</button>
+          <button id="product-cancel-btn" class="btn-outline" style="display:none; color:var(--green-800); border-color:var(--green-800);">ยกเลิกแก้ไข</button>
+        </div>
+        <p id="product-form-msg" class="admin-msg"></p>
+      </div>
+
+      <div id="product-list" class="admin-list"></div>
+    </div>
+  </section>
+
+  <!-- ============ SERVICES TAB ============ -->
+  <section id="tab-services" class="container admin-panel" style="display:none;">
+    <div class="admin-grid">
+      <div class="card admin-form">
+        <h3 id="service-form-title">เพิ่มบริการใหม่</h3>
+        <input type="hidden" id="service-id">
+        <div class="form-field">
+          <label for="service-type">ประเภทบริการ</label>
+          <select id="service-type">
+            <option value="tour">ทัวร์</option>
+            <option value="guide">ไกด์ชุมชน</option>
+            <option value="restaurant">ร้านอาหาร</option>
+            <option value="massage">นวดไทย</option>
+            <option value="driver">บริการรถรับส่ง</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="service-name">ชื่อ</label>
+          <input id="service-name" type="text" placeholder="เช่น เที่ยววิถีชุมชนกับไกด์ท้องถิ่น">
+        </div>
+        <div class="form-field">
+          <label for="service-description">ข้อมูล/รายละเอียด</label>
+          <textarea id="service-description" rows="4" placeholder="รายละเอียด..."></textarea>
+        </div>
+        <div class="form-field">
+          <label>รูปภาพ (เพิ่มได้หลายรูป)</label>
+          <div id="service-images-picker"></div>
+        </div>
+
+        <div id="service-field-price" class="form-field">
+          <label for="service-price">ราคา</label>
+          <input id="service-price" type="text" placeholder="฿1,150 / ท่าน">
+        </div>
+        <div id="service-field-schedule" class="form-field">
+          <label for="service-schedule">กำหนดการ / เวลาและระยะเวลาทำทัวร์</label>
+          <input id="service-schedule" type="text" placeholder="เช่น ครึ่งวัน 9.00–13.30 น.">
+        </div>
+        <div id="service-field-includes" class="form-field">
+          <label for="service-includes">รวม/ไม่รวม/เงื่อนไขอื่น ๆ</label>
+          <textarea id="service-includes" rows="2" placeholder="รวม: ... | ไม่รวม: ..."></textarea>
+        </div>
+        <div id="service-field-languages" class="form-field">
+          <label for="service-languages">ภาษาที่ใช้</label>
+          <input id="service-languages" type="text" placeholder="เช่น ไทย, อังกฤษ">
+        </div>
+        <div id="service-field-license" class="form-field">
+          <label for="service-license">ใบอนุญาต / เลขที่ใบอนุญาต</label>
+          <input id="service-license" type="text" placeholder="เช่น เลขที่ใบอนุญาตไกด์ 12345">
+        </div>
+        <div id="service-field-awards" class="form-field">
+          <label for="service-awards">รางวัล (ถ้ามี)</label>
+          <input id="service-awards" type="text" placeholder="เช่น รางวัลร้านอาหารสะอาดปี 2568">
+        </div>
+
+        <div class="admin-form-actions">
+          <button id="service-save-btn" class="btn-primary">บันทึกบริการ</button>
+          <button id="service-cancel-btn" class="btn-outline" style="display:none; color:var(--green-800); border-color:var(--green-800);">ยกเลิกแก้ไข</button>
+        </div>
+        <p id="service-form-msg" class="admin-msg"></p>
+      </div>
+
+      <div id="service-list" class="admin-list"></div>
+    </div>
+  </section>
+
   <!-- ============ STORIES TAB ============ -->
-  <section id="tab-stories" class="container admin-panel">
+  <section id="tab-stories" class="container admin-panel" style="display:none;">
     <div class="admin-grid">
       <div class="card admin-form">
         <h3 id="story-form-title">เพิ่มบทความใหม่</h3>
@@ -141,9 +269,8 @@
           <input id="story-date" type="date">
         </div>
         <div class="form-field">
-          <label for="story-image">รูปภาพประกอบ</label>
-          <input id="story-image" type="file" accept="image/*">
-          <img id="story-image-preview" class="admin-preview" style="display:none;">
+          <label>รูปภาพประกอบ (เพิ่มได้หลายรูป)</label>
+          <div id="story-images-picker"></div>
         </div>
         <div class="admin-form-actions">
           <button id="story-save-btn" class="btn-primary">บันทึกบทความ</button>
@@ -153,52 +280,6 @@
       </div>
 
       <div id="story-list" class="admin-list"></div>
-    </div>
-  </section>
-
-  <!-- ============ PRODUCTS TAB ============ -->
-  <section id="tab-products" class="container admin-panel" style="display:none;">
-    <div class="admin-grid">
-      <div class="card admin-form">
-        <h3 id="product-form-title">เพิ่มรายการใหม่</h3>
-        <input type="hidden" id="product-id">
-        <div class="form-field">
-          <label for="product-kind">ประเภท</label>
-          <select id="product-kind">
-            <option value="product">สินค้า</option>
-            <option value="service">บริการ</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label for="product-name">ชื่อรายการ</label>
-          <input id="product-name" type="text" placeholder="เช่น ข้าวกล้องอินทรีย์">
-        </div>
-        <div class="form-field">
-          <label for="product-description">รายละเอียด</label>
-          <textarea id="product-description" rows="4" placeholder="รายละเอียดสินค้า/บริการ..."></textarea>
-        </div>
-        <div class="form-field">
-          <label for="product-price">ราคา (ใส่ข้อความ เช่น ฿120 / กก. หรือ สอบถามราคา)</label>
-          <input id="product-price" type="text" placeholder="฿120 / กก.">
-        </div>
-        <div class="form-field">
-          <label for="product-image">รูปภาพ</label>
-          <input id="product-image" type="file" accept="image/*">
-          <img id="product-image-preview" class="admin-preview" style="display:none;">
-        </div>
-        <div class="admin-form-actions">
-          <button id="product-save-btn" class="btn-primary">บันทึกรายการ</button>
-          <button id="product-cancel-btn" class="btn-outline" style="display:none; color:var(--green-800); border-color:var(--green-800);">ยกเลิกแก้ไข</button>
-        </div>
-        <p id="product-form-msg" class="admin-msg"></p>
-      </div>
-
-      <div class="admin-list-wrap">
-        <h4>สินค้า</h4>
-        <div id="product-list-product" class="admin-list"></div>
-        <h4 style="margin-top:24px;">บริการ</h4>
-        <div id="product-list-service" class="admin-list"></div>
-      </div>
     </div>
   </section>
 

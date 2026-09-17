@@ -127,46 +127,7 @@
       <circle cx="200" cy="330" r="60" fill="#CFE3D3"/>
     </svg>
 
-    <a class="map-pin" href="#place-1" style="left:22%; top:62%;">
-      <span class="dot"></span>
-      <span class="tooltip">
-        <h4>ทุ่งนาอินทรีย์แม่หอพระ</h4>
-        <p>ทุ่งนาเขียวขจีคู่ป้ายชื่อตำบล</p>
-        <span class="btn-link">ดูรายละเอียด →</span>
-      </span>
-    </a>
-    <a class="map-pin" href="#place-2" style="left:47%; top:34%;">
-      <span class="dot dot-culture"></span>
-      <span class="tooltip">
-        <h4>วัดบ้านกาด</h4>
-        <p>พระพุทธรูปโบราณอายุ 300 ปี</p>
-        <span class="btn-link">ดูรายละเอียด →</span>
-      </span>
-    </a>
-    <a class="map-pin" href="#place-3" style="left:76%; top:24%;">
-      <span class="dot"></span>
-      <span class="tooltip">
-        <h4>น้ำตกหินปูน</h4>
-        <p>สายน้ำไหลผ่านชั้นหินปูนกลางป่า</p>
-        <span class="btn-link">ดูรายละเอียด →</span>
-      </span>
-    </a>
-    <a class="map-pin" href="#place-4" style="left:66%; top:64%;">
-      <span class="dot"></span>
-      <span class="tooltip">
-        <h4>บ่อน้ำสีมรกต</h4>
-        <p>แอ่งน้ำใสสีเขียวมรกตกลางป่า</p>
-        <span class="btn-link">ดูรายละเอียด →</span>
-      </span>
-    </a>
-    <a class="map-pin" href="#place-5" style="left:87%; top:70%;">
-      <span class="dot dot-culture"></span>
-      <span class="tooltip">
-        <h4>ถ้ำศักดิ์สิทธิ์</h4>
-        <p>ถ้ำธรรมชาติที่ประดิษฐานพระพุทธรูป</p>
-        <span class="btn-link">ดูรายละเอียด →</span>
-      </span>
-    </a>
+    <div id="map-pins"></div>
 
     <div class="map-legend">
       <span class="legend-item"><span class="dot-mini" style="background:var(--gold-500);"></span>ธรรมชาติ</span>
@@ -180,27 +141,8 @@
     <h3 style="font-size:24px; color:var(--green-900);">แหล่งท่องเที่ยวใกล้เคียง</h3>
     <p style="font-size:14.5px;">ต่อยอดทริปไปยังแหล่งท่องเที่ยวชื่อดังในอำเภอใกล้เคียง — แม่แตง สันทราย และพร้าว</p>
   </div>
-  <div class="nearby-grid">
-    <div class="card nearby-card">
-      <span class="tag" style="width:fit-content;">อ.แม่แตง</span>
-      <h4>ล่องแพแม่น้ำแม่แตง</h4>
-      <p>กิจกรรมล่องแพลำน้ำแม่แตง ตื่นเต้นท่ามกลางหุบเขาและป่าเขียว</p>
-    </div>
-    <div class="card nearby-card">
-      <span class="tag" style="width:fit-content;">อ.แม่แตง</span>
-      <h4>ปางช้างแม่แตง</h4>
-      <p>ศูนย์อนุรักษ์และกิจกรรมกับช้างในบรรยากาศธรรมชาติ</p>
-    </div>
-    <div class="card nearby-card">
-      <span class="tag" style="width:fit-content;">อ.สันทราย</span>
-      <h4>มหาวิทยาลัยแม่โจ้</h4>
-      <p>แคมปัสสีเขียวชื่อดัง เที่ยวชมทุ่งดอกไม้เมืองหนาวตามฤดูกาล</p>
-    </div>
-    <div class="card nearby-card">
-      <span class="tag" style="width:fit-content;">อ.พร้าว</span>
-      <h4>ดอยม่อนล้าน</h4>
-      <p>จุดชมวิวทะเลหมอกและพระอาทิตย์ขึ้นชื่อดังของเชียงใหม่ตอนเหนือ</p>
-    </div>
+  <div id="nearby-grid" class="nearby-grid">
+    <p style="color:var(--text-muted); font-size:14px;">กำลังโหลด...</p>
   </div>
 </section>
 
@@ -215,20 +157,22 @@
 
     <div class="pill-row" id="month-buttons"></div>
 
-    <div id="calendar-has-data" class="card calendar-detail" style="display:none;">
-      <div class="calendar-col">
+    <div id="calendar-gallery-wrap" style="display:none;">
+      <div class="calendar-gallery" id="calendar-gallery"></div>
+    </div>
+
+    <div id="calendar-has-data" class="calendar-blocks" style="display:none;">
+      <div id="cal-tradition-block" class="card calendar-block" style="display:none;">
         <span class="tag" style="width:fit-content;" id="cal-tradition-tag">ประเพณีประจำเดือน</span>
-        <h4 id="cal-tradition-title"></h4>
-        <p id="cal-tradition-desc"></p>
+        <div id="cal-tradition-items" style="display:flex; flex-direction:column; gap:16px;"></div>
       </div>
-      <div class="calendar-col middle">
+      <div id="cal-activity-block" class="card calendar-block" style="display:none;">
+        <span class="tag" style="width:fit-content;">กิจกรรมแนะนำ</span>
+        <div id="cal-activity-items" style="display:flex; flex-direction:column; gap:16px;"></div>
+      </div>
+      <div id="cal-products-block" class="card calendar-block" style="display:none;">
         <span class="tag-gold" style="width:fit-content;">สินค้าเกษตรประจำเดือน</span>
         <div id="cal-products" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;"></div>
-      </div>
-      <div class="calendar-col">
-        <span class="tag" style="width:fit-content;">กิจกรรมแนะนำ</span>
-        <h4 id="cal-activity-title"></h4>
-        <p id="cal-activity-desc"></p>
       </div>
     </div>
 
@@ -257,7 +201,7 @@
   </div>
 
   <div class="subsection-head"><h3>บริการชุมชน</h3></div>
-  <div id="service-grid" class="product-grid">
+  <div id="service-groups">
     <p style="color:var(--text-muted); font-size:14px;">กำลังโหลดบริการ...</p>
   </div>
 </section>
@@ -327,17 +271,17 @@
         <span class="section-kicker">GETTING THERE</span>
         <h3 style="font-size:22px; color:var(--green-900);">การเดินทางมาแม่หอพระ</h3>
         <p style="margin:0; font-size:14.5px; line-height:1.75; color:var(--text-muted);">จากตัวเมืองเชียงใหม่ ใช้เส้นทางหลวงหมายเลข 107 (เชียงใหม่–ฝาง) มุ่งหน้าอำเภอแม่แตง แล้วเลี้ยวเข้าตำบลแม่หอพระตามป้ายบอกทาง ระยะทางประมาณ [ระยะทาง] กม. ใช้เวลาเดินทางประมาณ [เวลาเดินทาง] นาที เหมาะกับการเดินทางด้วยรถยนต์ส่วนตัว</p>
-        <a href="https://www.google.com/maps/search/?api=1&query=%E0%B8%95%E0%B8%B3%E0%B8%9A%E0%B8%A5%E0%B9%81%E0%B8%A1%E0%B9%88%E0%B8%AB%E0%B8%AD%E0%B8%9E%E0%B8%A3%E0%B8%B0%20%E0%B8%AD%E0%B8%B3%E0%B9%80%E0%B8%A0%E0%B8%AD%E0%B9%81%E0%B8%A1%E0%B9%88%E0%B9%81%E0%B8%95%E0%B8%87%20%E0%B9%80%E0%B8%8A%E0%B8%B5%E0%B8%A2%E0%B8%87%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88" target="_blank" rel="noopener" style="width:fit-content; margin-top:6px;">
+        <a href="https://www.google.com/maps/place/%E0%B9%80%E0%B8%97%E0%B8%A8%E0%B8%9A%E0%B8%B2%E0%B8%A5%E0%B8%95%E0%B8%B3%E0%B8%9A%E0%B8%A5%E0%B9%81%E0%B8%A1%E0%B9%88%E0%B8%AB%E0%B8%AD%E0%B8%9E%E0%B8%A3%E0%B8%B0+%E0%B8%AD%E0%B8%B3%E0%B9%80%E0%B8%A0%E0%B8%AD%E0%B9%81%E0%B8%A1%E0%B9%88%E0%B9%81%E0%B8%95%E0%B8%87+%E0%B8%88%E0%B8%B1%E0%B8%87%E0%B8%AB%E0%B8%A7%E0%B8%B1%E0%B8%94%E0%B9%80%E0%B8%8A%E0%B8%B5%E0%B8%A2%E0%B8%87%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88/@19.1136209,99.0176802,797m/data=!3m2!1e3!4b1!4m6!3m5!1s0x30da1174c0d10167:0xeb92a87cc1a4d8cf!8m2!3d19.1136158!4d99.0202498!16s%2Fg%2F11g0mrk3lh" target="_blank" rel="noopener" style="width:fit-content; margin-top:6px;">
           <button class="btn-primary" style="background:var(--green-800); color:#FFFFFF;">เปิดใน Google Maps</button>
         </a>
       </div>
       <div style="border-radius:16px; overflow:hidden; height:220px; position:relative;">
-        <svg viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg" style="position:absolute; inset:0; width:100%; height:100%;">
-          <rect width="400" height="220" fill="#DCEBDD"/>
-          <path d="M-10 60 C 100 30, 220 90, 410 50" stroke="#EDE3C8" stroke-width="16" fill="none"/>
-          <path d="M0 160 C 120 120, 260 190, 400 140" stroke="#BFD9C4" stroke-width="34" fill="none"/>
-        </svg>
-        <div class="map-pin" style="left:58%; top:52%;"><span class="dot"></span></div>
+        <iframe
+          src="https://www.google.com/maps?q=19.1136158,99.0202498&z=16&output=embed"
+          style="position:absolute; inset:0; width:100%; height:100%; border:0;"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          title="แผนที่ตำแหน่งเทศบาลตำบลแม่หอพระ"></iframe>
       </div>
     </div>
   </div>
@@ -400,6 +344,20 @@
     </div>
   </div>
 </footer>
+
+<!-- ============ DETAIL MODAL (shared by attractions / products / services / stories) ============ -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="modal-close" aria-label="ปิด">✕</button>
+    <div class="modal-gallery" id="modal-gallery" style="display:none;"></div>
+    <div class="modal-body">
+      <span class="tag" id="modal-tag" style="width:fit-content; display:none;"></span>
+      <h3 id="modal-title"></h3>
+      <div class="modal-field-row" id="modal-fields"></div>
+      <p id="modal-desc"></p>
+    </div>
+  </div>
+</div>
 
 <script src="js/main.js"></script>
 </body>
