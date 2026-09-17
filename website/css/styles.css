@@ -107,17 +107,12 @@ img{ max-width:100%; }
 
 /* Map */
 .map-wrap{ margin-top:24px; margin-bottom:64px; position:relative; width:100%; height:440px; border-radius:20px; overflow:hidden; border:1px solid var(--border); }
-.map-wrap svg{ position:absolute; inset:0; width:100%; height:100%; display:block; }
-.map-pin{ position:absolute; transform:translate(-50%,-50%); background:none; border:none; padding:0; font:inherit; }
-.map-pin .dot{ width:20px; height:20px; border-radius:999px; background:var(--gold-500); border:3px solid #FFFFFF; box-shadow:0 3px 8px rgba(15,51,32,0.35); cursor:pointer; display:block; }
-.map-pin .dot-culture{ background:var(--green-700); }
-.map-pin .tooltip{ position:absolute; bottom:30px; left:50%; transform:translateX(-50%); width:212px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; box-shadow:0 14px 30px rgba(15,51,32,0.2); opacity:0; visibility:hidden; transition:opacity .15s ease; z-index:6; text-align:left; }
-.map-pin:hover .tooltip, .map-pin:focus-within .tooltip{ opacity:1; visibility:visible; }
-.map-pin .tooltip:after{ content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:var(--surface); }
-.map-pin .tooltip h4{ font-size:14.5px; color:var(--green-800); margin:0 0 4px; }
-.map-pin .tooltip p{ margin:0 0 8px; font-size:12.5px; color:var(--text-muted); line-height:1.5; }
-.map-legend{ position:absolute; left:16px; bottom:16px; background:rgba(255,255,255,0.9); border-radius:10px; padding:8px 14px; display:flex; gap:14px; font-size:12px; color:var(--text-dark); }
+#attraction-leaflet-map{ position:absolute; inset:0; width:100%; height:100%; z-index:1; background:var(--green-50, #EAF2EA); }
+.map-legend{ position:absolute; left:16px; bottom:16px; background:rgba(255,255,255,0.9); border-radius:10px; padding:8px 14px; display:flex; gap:14px; font-size:12px; color:var(--text-dark); z-index:400; }
 .map-legend .dot-mini{ width:10px; height:10px; border-radius:999px; display:inline-block; }
+.leaflet-popup-content h4{ font-size:14.5px; color:var(--green-800); margin:0 0 4px; }
+.leaflet-popup-content p{ margin:0 0 8px; font-size:12.5px; color:var(--text-muted); line-height:1.5; }
+.leaflet-popup-content .btn-link{ font-size:12.5px; color:var(--green-700); font-weight:600; cursor:pointer; }
 .legend-item{ display:flex; align-items:center; gap:6px; }
 
 .nearby-grid{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:20px; }

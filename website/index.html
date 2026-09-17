@@ -7,6 +7,7 @@
 <meta name="description" content="เที่ยววิถีชุมชน สัมผัสธรรมชาติ วัฒนธรรม สินค้าและบริการของตำบลแม่หอพระ อำเภอแม่แตง จังหวัดเชียงใหม่">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -114,20 +115,10 @@
   <div class="section-head" style="margin-top:64px;">
     <span class="section-kicker">MAP</span>
     <h3 style="font-size:24px; color:var(--green-900);">แผนที่แหล่งท่องเที่ยวแม่หอพระ</h3>
-    <p style="font-size:14.5px;">แผนที่แบบย่อ ไม่ใช่มาตราส่วนจริง — ชี้เมาส์ที่หมุดเพื่อดูข้อมูล และคลิก "ดูรายละเอียด" เพื่อไปยังการ์ดของสถานที่นั้น</p>
+    <p style="font-size:14.5px;">แผนที่จริงจากพิกัด GPS ของแต่ละสถานที่ — คลิกหมุดเพื่อดูข้อมูล และกด "ดูรายละเอียด" เพื่อดูข้อมูลเต็มของสถานที่นั้น</p>
   </div>
   <div class="map-wrap">
-    <svg viewBox="0 0 1200 440" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="1200" height="440" fill="#DCEBDD"/>
-      <path d="M0 260 C 250 200, 450 320, 700 250 C 900 200, 1050 260, 1200 220" stroke="#BFD9C4" stroke-width="70" fill="none"/>
-      <path d="M-20 120 C 300 60, 600 160, 1220 90" stroke="#EDE3C8" stroke-width="26" fill="none"/>
-      <path d="M60 60 C 160 180, 120 320, 40 420" stroke="#9FC7E8" stroke-width="14" fill="none" opacity="0.8"/>
-      <circle cx="900" cy="120" r="90" fill="#CFE3D3"/>
-      <circle cx="1050" cy="330" r="70" fill="#CFE3D3"/>
-      <circle cx="200" cy="330" r="60" fill="#CFE3D3"/>
-    </svg>
-
-    <div id="map-pins"></div>
+    <div id="attraction-leaflet-map"></div>
 
     <div class="map-legend">
       <span class="legend-item"><span class="dot-mini" style="background:var(--gold-500);"></span>ธรรมชาติ</span>
@@ -359,6 +350,7 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

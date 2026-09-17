@@ -129,15 +129,12 @@ var Modal = (function () {
 (function () {
   var grid = document.getElementById('attraction-grid');
   var filterButtons = document.querySelectorAll('#attraction-filters .pill-btn');
-  var pinsWrap = document.getElementById('map-pins');
+  var mapEl = document.getElementById('attraction-leaflet-map');
   if (!grid) return;
 
-  var MAP_SLOTS = [
-    { left: 22, top: 62 }, { left: 47, top: 34 }, { left: 76, top: 24 },
-    { left: 66, top: 64 }, { left: 87, top: 70 }, { left: 34, top: 80 },
-    { left: 58, top: 46 }, { left: 12, top: 38 }, { left: 92, top: 40 },
-    { left: 40, top: 20 }, { left: 78, top: 82 }, { left: 15, top: 70 }
-  ];
+  // Real GPS center of Mae Ho Phra subdistrict (municipal office), used so the
+  // map has a sensible view even before every attraction has a pinned location.
+  var COMMUNITY_CENTER = [19.1136158, 99.0202498];
 
   function applyFilter(filter) {
     grid.querySelectorAll('.place-card').forEach(function (card) {
@@ -197,27 +194,34 @@ var Modal = (function () {
         });
       });
 
-      // Build map pins from live attraction data (auto-added for new ones).
-      if (pinsWrap) {
-        pinsWrap.innerHTML = places.map(function (p, i) {
-          var slot = MAP_SLOTS[i % MAP_SLOTS.length];
-          return (
-            '<button type="button" class="map-pin" data-id="' + p.id + '" style="left:' + slot.left + '%; top:' + slot.top + '%;">' +
-              '<span class="dot' + (p.category === 'culture' ? ' dot-culture' : '') + '"></span>' +
-              '<span class="tooltip">' +
-                '<h4>' + escapeHtml(p.name) + '</h4>' +
-                '<p>' + escapeHtml((p.description || '').slice(0, 60)) + (p.description && p.description.length > 60 ? '…' : '') + '</p>' +
-                '<span class="btn-link">ดูรายละเอียด →</span>' +
-              '</span>' +
-            '</button>'
-          );
-        }).join('');
-        pinsWrap.querySelectorAll('.map-pin').forEach(function (pin) {
-          pin.addEventListener('click', function () {
-            var p = places.find(function (x) { return String(x.id) === pin.getAttribute('data-id'); });
-            if (p) openAttractionModal(p);
-          });
+      // Build real map pins from live attraction GPS data (auto-added for new
+      // attractions the moment they have a Google Maps link saved in admin).
+      if (mapEl && window.L) {
+        var located = places.filter(function (p) { return p.lat != null && p.lng != null; });
+        var map = L.map(mapEl, { scrollWheelZoom: false }).setView(COMMUNITY_CENTER, 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors',
+          maxZoom: 19
+        }).addTo(map);
+
+        located.forEach(function (p) {
+          var color = p.category === 'culture' ? '#2E6B47' : '#D9A441';
+          var marker = L.circleMarker([p.lat, p.lng], {
+            radius: 10, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1
+          }).addTo(map);
+          var popupEl = document.createElement('div');
+          popupEl.innerHTML =
+            '<h4>' + escapeHtml(p.name) + '</h4>' +
+            '<p>' + escapeHtml((p.description || '').slice(0, 60)) + (p.description && p.description.length > 60 ? '…' : '') + '</p>' +
+            '<span class="btn-link">ดูรายละเอียด →</span>';
+          popupEl.querySelector('.btn-link').addEventListener('click', function () { openAttractionModal(p); });
+          marker.bindPopup(popupEl);
         });
+
+        if (located.length) {
+          var bounds = L.latLngBounds(located.map(function (p) { return [p.lat, p.lng]; }));
+          map.fitBounds(bounds.pad(0.35), { maxZoom: 15 });
+        }
       }
     })
     .catch(function () {

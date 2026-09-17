@@ -236,6 +236,8 @@
   var attractionName = document.getElementById('attraction-name');
   var attractionTag = document.getElementById('attraction-tag');
   var attractionDescription = document.getElementById('attraction-description');
+  var attractionMapUrl = document.getElementById('attraction-map-url');
+  var attractionMapStatus = document.getElementById('attraction-map-status');
   var attractionImages = createImagePicker('attraction-images-picker');
   var attractionFormTitle = document.getElementById('attraction-form-title');
   var attractionSaveBtn = document.getElementById('attraction-save-btn');
@@ -250,6 +252,8 @@
     attractionName.value = '';
     attractionTag.value = '';
     attractionDescription.value = '';
+    attractionMapUrl.value = '';
+    attractionMapStatus.textContent = '';
     attractionImages.setImages([]);
     attractionFormTitle.textContent = 'เพิ่มแหล่งท่องเที่ยวใหม่';
     attractionCancelBtn.style.display = 'none';
@@ -276,7 +280,7 @@
           '<div class="admin-item-body">' +
             '<h5>' + escapeHtml(place.name) + '</h5>' +
             '<p>' + escapeHtml(place.description) + '</p>' +
-            '<div class="admin-item-meta">' + (place.category === 'nature' ? 'ธรรมชาติ' : 'วัฒนธรรม') + (place.tag ? ' · ' + escapeHtml(place.tag) : '') + (place.images ? ' · ' + place.images.length + ' รูป' : '') + '</div>' +
+            '<div class="admin-item-meta">' + (place.category === 'nature' ? 'ธรรมชาติ' : 'วัฒนธรรม') + (place.tag ? ' · ' + escapeHtml(place.tag) : '') + (place.images ? ' · ' + place.images.length + ' รูป' : '') + ' · ' + (place.lat != null && place.lng != null ? '📍 ปักหมุดแล้ว' : 'ยังไม่ได้ปักหมุดบนแผนที่') + '</div>' +
           '</div>' +
           '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
         item.querySelector('.edit-btn').addEventListener('click', function () {
@@ -285,6 +289,10 @@
           attractionName.value = place.name;
           attractionTag.value = place.tag || '';
           attractionDescription.value = place.description;
+          attractionMapUrl.value = place.map_url || '';
+          attractionMapStatus.textContent = (place.lat != null && place.lng != null)
+            ? 'พิกัดปัจจุบัน: ' + place.lat.toFixed(5) + ', ' + place.lng.toFixed(5)
+            : '';
           attractionImages.setImages(place.images || []);
           attractionFormTitle.textContent = 'แก้ไขแหล่งท่องเที่ยว';
           attractionCancelBtn.style.display = 'inline-block';
@@ -315,6 +323,7 @@
         name: name,
         tag: attractionTag.value.trim(),
         description: description,
+        map_url: attractionMapUrl.value.trim(),
         images: images
       };
       return id
@@ -323,7 +332,9 @@
     }).then(function (result) {
       attractionSaveBtn.disabled = false;
       if (result.ok && result.data.success) {
-        attractionFormMsg.textContent = 'บันทึกสำเร็จ';
+        var hasPin = result.data.lat != null && result.data.lng != null;
+        var pastedUrl = attractionMapUrl.value.trim();
+        attractionFormMsg.textContent = 'บันทึกสำเร็จ' + (pastedUrl ? (hasPin ? ' — ปักหมุดบนแผนที่แล้ว' : ' — อ่านพิกัดจากลิงก์นี้ไม่ได้ ลองวางลิงก์แบบเต็ม (เปิดลิงก์แล้วคัดลอก URL จาก address bar) แทนลิงก์แบบย่อ') : '');
         attractionFormMsg.className = 'admin-msg success';
         resetAttractionForm();
         loadAttractions();

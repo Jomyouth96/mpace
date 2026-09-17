@@ -1,8 +1,10 @@
 import json
 import os
+import re
 import secrets
 import smtplib
 import sqlite3
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from email.message import EmailMessage
@@ -116,6 +118,42 @@ def _row_with_images(row):
     return d
 
 
+_LATLNG_PATTERNS = (
+    re.compile(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)"),  # place URLs: ...!3d<lat>!4d<lng>...
+    re.compile(r"[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)"),  # ...?q=<lat>,<lng>
+    re.compile(r"@(-?\d+\.\d+),(-?\d+\.\d+)"),       # ...@<lat>,<lng>,<zoom>z
+)
+
+
+def _extract_lat_lng(map_url):
+    """A Google Maps URL (full or short link) -> (lat, lng) floats, or (None, None)
+    if no coordinates could be found in it."""
+    url = (map_url or "").strip()
+    if not url:
+        return None, None
+
+    for pattern in _LATLNG_PATTERNS:
+        match = pattern.search(url)
+        if match:
+            return float(match.group(1)), float(match.group(2))
+
+    # Short links (maps.app.goo.gl / goo.gl/maps) carry no coordinates in the
+    # link itself — follow the redirect to the real Google Maps URL and retry.
+    if "goo.gl" in url or "google.com/maps" not in url:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                resolved_url = resp.geturl()
+            for pattern in _LATLNG_PATTERNS:
+                match = pattern.search(resolved_url)
+                if match:
+                    return float(match.group(1)), float(match.group(2))
+        except Exception:
+            pass
+
+    return None, None
+
+
 def init_db():
     with sqlite3.connect(DB_PATH) as db:
         db.execute(
@@ -221,6 +259,15 @@ def init_db():
             """
         )
         db.commit()
+
+        # Add real-map location columns to attractions if reusing an older
+        # database that predates this feature.
+        existing_attr_cols = {row[1] for row in db.execute("PRAGMA table_info(attractions)").fetchall()}
+        if "map_url" not in existing_attr_cols:
+            db.execute("ALTER TABLE attractions ADD COLUMN map_url TEXT")
+            db.execute("ALTER TABLE attractions ADD COLUMN lat REAL")
+            db.execute("ALTER TABLE attractions ADD COLUMN lng REAL")
+            db.commit()
 
         # Migrate calendar_months from the old one-tradition/one-activity
         # schema to the new traditions[]/activities[] lists, if an older
@@ -738,6 +785,8 @@ def list_attractions():
 
 
 def _parse_attraction_payload(payload):
+    map_url = (payload.get("map_url") or "").strip() or None
+    lat, lng = _extract_lat_lng(map_url)
     return {
         "category": (payload.get("category") or "").strip(),
         "name": (payload.get("name") or "").strip(),
@@ -745,6 +794,9 @@ def _parse_attraction_payload(payload):
         "description": (payload.get("description") or "").strip(),
         "images": _images_to_db(payload.get("images")),
         "sort_order": int(payload.get("sort_order") or 0),
+        "map_url": map_url,
+        "lat": lat,
+        "lng": lng,
     }
 
 
@@ -757,13 +809,14 @@ def create_attraction():
 
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO attractions (category, name, tag, description, images, sort_order, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO attractions (category, name, tag, description, images, sort_order, "
+        "map_url, lat, lng, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (data["category"], data["name"], data["tag"], data["description"], data["images"],
-         data["sort_order"], datetime.now(timezone.utc).isoformat()),
+         data["sort_order"], data["map_url"], data["lat"], data["lng"],
+         datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
-    return jsonify({"success": True, "id": cursor.lastrowid}), 201
+    return jsonify({"success": True, "id": cursor.lastrowid, "lat": data["lat"], "lng": data["lng"]}), 201
 
 
 @app.put("/api/attractions/<int:attraction_id>")
@@ -776,14 +829,14 @@ def update_attraction(attraction_id):
     db = get_db()
     result = db.execute(
         "UPDATE attractions SET category = ?, name = ?, tag = ?, description = ?, images = ?, "
-        "sort_order = ? WHERE id = ?",
+        "sort_order = ?, map_url = ?, lat = ?, lng = ? WHERE id = ?",
         (data["category"], data["name"], data["tag"], data["description"], data["images"],
-         data["sort_order"], attraction_id),
+         data["sort_order"], data["map_url"], data["lat"], data["lng"], attraction_id),
     )
     db.commit()
     if result.rowcount == 0:
         return jsonify({"success": False, "error": "ไม่พบแหล่งท่องเที่ยวนี้"}), 404
-    return jsonify({"success": True})
+    return jsonify({"success": True, "lat": data["lat"], "lng": data["lng"]})
 
 
 @app.delete("/api/attractions/<int:attraction_id>")
