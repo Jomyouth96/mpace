@@ -1,5 +1,36 @@
 var API_BASE = '';
 
+// ============ MOBILE NAV TOGGLE (hamburger menu on tablet/mobile) ============
+(function () {
+  var toggle = document.getElementById('nav-toggle');
+  var nav = document.querySelector('.nav-links');
+  if (!toggle || !nav) return;
+
+  function closeNav() {
+    nav.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+  }
+
+  toggle.addEventListener('click', function () {
+    var isOpen = nav.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+
+  nav.querySelectorAll('a').forEach(function (link) {
+    link.addEventListener('click', closeNav);
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!nav.classList.contains('open')) return;
+    if (nav.contains(e.target) || toggle.contains(e.target)) return;
+    closeNav();
+  });
+
+  window.addEventListener('resize', function () {
+    if (window.innerWidth > 960) closeNav();
+  });
+})();
+
 function escapeHtml(str) {
   var div = document.createElement('div');
   div.textContent = str == null ? '' : String(str);

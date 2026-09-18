@@ -46,6 +46,8 @@ img{ max-width:100%; }
 .brand-text strong{ font-family:'Kanit',sans-serif; font-weight:600; font-size:15.5px; color:var(--green-800); }
 .brand-text span{ font-size:12.5px; color:var(--text-muted); }
 .nav-links{ display:flex; align-items:center; gap:26px; flex-wrap:wrap; }
+.nav-toggle{ display:none; background:none; border:none; width:32px; height:24px; padding:0; flex-direction:column; justify-content:space-between; cursor:pointer; }
+.nav-toggle span{ display:block; height:3px; border-radius:2px; background:var(--green-800); }
 
 /* Hero */
 .hero{ position:relative; width:100%; min-height:640px; display:flex; align-items:center; background:var(--green-900); overflow:hidden; }
@@ -284,6 +286,23 @@ img{ max-width:100%; }
 /* Responsive */
 @media (max-width: 960px){
   .nav-links{ display:none; }
+  .nav-toggle{ display:flex; }
+  .nav-links.open{
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    position:absolute;
+    top:100%;
+    left:0;
+    right:0;
+    background:var(--ivory);
+    border-bottom:1px solid var(--border);
+    padding:8px 20px 16px;
+    gap:2px;
+    box-shadow:0 16px 24px rgba(15,51,32,0.12);
+  }
+  .nav-links.open .navlink{ padding:12px 0; border-bottom:1px solid var(--border); }
+  .nav-links.open .navlink:last-child{ border-bottom:none; }
   .feature-grid, .attraction-grid, .product-grid, .nearby-grid{ grid-template-columns:repeat(2, minmax(0,1fr)); }
   .about-grid, .contact-grid, .service-grid, .qa-grid, .calendar-detail, .getting-there .card{ grid-template-columns:1fr; }
   .calendar-col.middle{ border-left:none; border-right:none; padding:24px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
