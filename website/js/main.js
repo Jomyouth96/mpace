@@ -529,7 +529,7 @@ var Modal = (function () {
         '<div class="body">' +
           '<span class="date">' + escapeHtml(x.s.published_at) + '</span>' +
           '<h4>' + escapeHtml(x.l.title) + '</h4>' +
-          '<p>' + escapeHtml(x.l.excerpt) + '</p>' +
+          '<p>' + escapeHtml(x.l.excerpt.length > 90 ? x.l.excerpt.slice(0, 90) + '…' : x.l.excerpt) + '</p>' +
         '</div></div>'
       );
     }).join('');
