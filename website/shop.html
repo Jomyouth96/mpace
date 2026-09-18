@@ -111,8 +111,14 @@
     <div class="modal-body">
       <h3 data-i18n="cart_title">ตะกร้าสินค้า</h3>
       <div id="cart-items"></div>
+      <div id="cart-coupon-row" style="display:none; gap:8px; margin-top:10px;">
+        <input type="text" id="cart-coupon-input" style="flex:1; text-transform:uppercase;" placeholder="โค้ดส่วนลด (ถ้ามี)" data-i18n-placeholder="cart_coupon_placeholder">
+        <button type="button" id="cart-coupon-apply-btn" class="btn-outline" data-i18n="cart_coupon_apply_btn">ใช้โค้ด</button>
+      </div>
+      <p id="cart-coupon-msg" class="qa-success" style="margin:6px 0 0; font-size:13px;"></p>
       <div id="cart-totals" class="cart-totals" style="display:none;">
         <div id="cart-subtotal-row"></div>
+        <div id="cart-discount-row" style="display:none;"></div>
         <div id="cart-shipping-row"></div>
         <div class="total-row" id="cart-total-row"></div>
       </div>

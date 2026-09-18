@@ -158,9 +158,9 @@
     loadHighlights();
     loadStories();
     loadQuestions();
-    loadShippingRate();
     loadOrders();
     loadBookings();
+    loadCoupons();
   }
 
   function showLogin(message) {
@@ -228,7 +228,8 @@
     stories: document.getElementById('tab-stories'),
     qa: document.getElementById('tab-qa'),
     orders: document.getElementById('tab-orders'),
-    bookings: document.getElementById('tab-bookings')
+    bookings: document.getElementById('tab-bookings'),
+    coupons: document.getElementById('tab-coupons')
   };
   tabButtons.forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -1294,27 +1295,6 @@
   var ordersList = document.getElementById('orders-list');
   var ordersSearch = document.getElementById('orders-search');
   var ordersCache = [];
-  var shippingRateInput = document.getElementById('shipping-rate-input');
-  var shippingRateSaveBtn = document.getElementById('shipping-rate-save-btn');
-  var shippingRateMsg = document.getElementById('shipping-rate-msg');
-
-  function loadShippingRate() {
-    fetch(API_BASE + '/api/settings/shipping').then(function (r) { return r.json(); }).then(function (data) {
-      shippingRateInput.value = data.shipping_flat_rate;
-    });
-  }
-
-  shippingRateSaveBtn.addEventListener('click', function () {
-    shippingRateSaveBtn.disabled = true;
-    api('/api/settings/shipping', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shipping_flat_rate: shippingRateInput.value })
-    }).then(function (result) {
-      shippingRateSaveBtn.disabled = false;
-      shippingRateMsg.textContent = (result.ok && result.data.success) ? 'บันทึกสำเร็จ' : ((result.data && result.data.error) || 'บันทึกไม่สำเร็จ');
-      shippingRateMsg.className = (result.ok && result.data.success) ? 'admin-msg success' : 'admin-msg error';
-    });
-  });
 
   function loadOrders() {
     api('/api/orders').then(function (result) {
@@ -1335,6 +1315,7 @@
       var itemsHtml = (o.items || []).map(function (it) {
         return escapeHtml(it.name) + ' × ' + it.qty + ' (฿' + it.line_total + ')';
       }).join('<br>');
+      var hasShipping = o.shipping_cost !== null && o.shipping_cost !== undefined;
       var item = document.createElement('div');
       item.className = 'card admin-item';
       item.style.flexDirection = 'column';
@@ -1345,8 +1326,36 @@
           '<div class="admin-item-meta">ติดต่อ: ' + escapeHtml(o.customer_contact) + ' · ที่อยู่: ' + escapeHtml(o.customer_address) + ' · ' + escapeHtml((o.created_at || '').slice(0, 16).replace('T', ' ')) + '</div>' +
           '<p style="margin-top:8px;">' + itemsHtml + '</p>' +
           (o.notes ? '<p style="margin-top:4px; color:var(--text-muted);">หมายเหตุ: ' + escapeHtml(o.notes) + '</p>' : '') +
-          '<p style="margin-top:8px;"><strong>ยอดสินค้า: ฿' + o.subtotal + ' + ค่าส่ง ฿' + o.shipping_cost + ' = รวม ฿' + o.total + '</strong></p>' +
+          (o.coupon_code ? '<p style="margin-top:4px; color:var(--green-700);">คูปอง: ' + escapeHtml(o.coupon_code) + ' (ลด ฿' + o.discount_amount + ')</p>' : '') +
+          '<p style="margin-top:8px;"><strong>ยอดสินค้า: ฿' + o.subtotal + (o.discount_amount ? ' − ส่วนลด ฿' + o.discount_amount : '') +
+            ' + ค่าส่ง ' + (hasShipping ? '฿' + o.shipping_cost : 'ยังไม่ระบุ') + ' = รวม ฿' + o.total + '</strong></p>' +
         '</div>';
+      var shippingRow = document.createElement('div');
+      shippingRow.style.display = 'flex';
+      shippingRow.style.gap = '8px';
+      shippingRow.style.alignItems = 'center';
+      shippingRow.style.marginTop = '10px';
+      var shippingInput = document.createElement('input');
+      shippingInput.type = 'number';
+      shippingInput.min = '0';
+      shippingInput.step = '0.01';
+      shippingInput.placeholder = 'ค่าจัดส่ง (บาท)';
+      shippingInput.style.maxWidth = '160px';
+      if (hasShipping) shippingInput.value = o.shipping_cost;
+      var shippingSaveBtn = document.createElement('button');
+      shippingSaveBtn.className = 'btn-outline';
+      shippingSaveBtn.style.fontSize = '12.5px';
+      shippingSaveBtn.style.padding = '6px 12px';
+      shippingSaveBtn.textContent = 'บันทึกค่าจัดส่ง';
+      shippingSaveBtn.addEventListener('click', function () {
+        if (shippingInput.value === '') return;
+        shippingSaveBtn.disabled = true;
+        api('/api/orders/' + o.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shipping_cost: shippingInput.value }) })
+          .then(function () { loadOrders(); });
+      });
+      shippingRow.appendChild(shippingInput);
+      shippingRow.appendChild(shippingSaveBtn);
+      item.appendChild(shippingRow);
       var actions = document.createElement('div');
       actions.style.display = 'flex';
       actions.style.gap = '8px';
@@ -1439,5 +1448,127 @@
         b.service_name.toLowerCase().indexOf(q) !== -1 ||
         (b.created_at || '').indexOf(q) !== -1;
     }) : bookingsCache);
+  });
+
+  // ============ COUPONS ============
+  var COUPON_TYPE_LABELS = { percent: '%', fixed: 'บาท' };
+  var couponIdField = document.getElementById('coupon-id');
+  var couponCode = document.getElementById('coupon-code');
+  var couponDiscountType = document.getElementById('coupon-discount-type');
+  var couponDiscountValue = document.getElementById('coupon-discount-value');
+  var couponMaxUses = document.getElementById('coupon-max-uses');
+  var couponActiveField = document.getElementById('coupon-active-field');
+  var couponActive = document.getElementById('coupon-active');
+  var couponFormTitle = document.getElementById('coupon-form-title');
+  var couponSaveBtn = document.getElementById('coupon-save-btn');
+  var couponCancelBtn = document.getElementById('coupon-cancel-btn');
+  var couponFormMsg = document.getElementById('coupon-form-msg');
+  var couponList = document.getElementById('coupon-list');
+  var couponSearch = document.getElementById('coupon-search');
+  var couponsCache = [];
+
+  function resetCouponForm() {
+    couponIdField.value = '';
+    couponCode.value = '';
+    couponCode.disabled = false;
+    couponDiscountType.value = 'percent';
+    couponDiscountValue.value = '';
+    couponMaxUses.value = '';
+    couponActive.checked = true;
+    couponActiveField.style.display = 'none';
+    couponFormTitle.textContent = 'เพิ่มคูปองส่วนลดใหม่';
+    couponCancelBtn.style.display = 'none';
+    couponFormMsg.textContent = '';
+  }
+
+  couponCancelBtn.addEventListener('click', resetCouponForm);
+
+  function loadCoupons() {
+    api('/api/coupons').then(function (result) {
+      if (!result.ok) return;
+      couponsCache = result.data;
+      renderCouponList(couponsCache);
+    });
+  }
+
+  function renderCouponList(coupons) {
+    couponList.innerHTML = '';
+    if (coupons.length === 0) {
+      couponList.innerHTML = '<div class="admin-empty">' +
+        (couponsCache.length === 0 ? 'ยังไม่มีคูปอง' : 'ไม่พบคูปองที่ตรงกับการค้นหา') + '</div>';
+      return;
+    }
+    coupons.forEach(function (c) {
+      var item = document.createElement('div');
+      item.className = 'card admin-item';
+      item.innerHTML =
+        '<div class="admin-item-body">' +
+          '<h5>' + escapeHtml(c.code) + (c.active ? '' : ' <span class="answered-badge">ปิดใช้งาน</span>') + '</h5>' +
+          '<div class="admin-item-meta">ส่วนลด ' + c.discount_value + COUPON_TYPE_LABELS[c.discount_type] +
+            ' · ใช้ไปแล้ว ' + c.used_count + (c.max_uses ? ' / ' + c.max_uses : ' ครั้ง (ไม่จำกัด)') + '</div>' +
+        '</div>' +
+        '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
+      item.querySelector('.edit-btn').addEventListener('click', function () {
+        couponIdField.value = c.id;
+        couponCode.value = c.code;
+        couponCode.disabled = true;
+        couponDiscountType.value = c.discount_type;
+        couponDiscountValue.value = c.discount_value;
+        couponMaxUses.value = c.max_uses || '';
+        couponActive.checked = !!c.active;
+        couponActiveField.style.display = 'block';
+        couponFormTitle.textContent = 'แก้ไขคูปอง "' + c.code + '"';
+        couponCancelBtn.style.display = 'inline-block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+      item.querySelector('.delete-btn').addEventListener('click', function () {
+        if (!confirm('ลบคูปอง "' + c.code + '" ใช่หรือไม่?')) return;
+        api('/api/coupons/' + c.id, { method: 'DELETE' }).then(function () { loadCoupons(); });
+      });
+      couponList.appendChild(item);
+    });
+  }
+
+  couponSearch.addEventListener('input', function () {
+    var q = couponSearch.value.trim().toLowerCase();
+    renderCouponList(q ? couponsCache.filter(function (c) { return c.code.toLowerCase().indexOf(q) !== -1; }) : couponsCache);
+  });
+
+  couponSaveBtn.addEventListener('click', function () {
+    var code = couponCode.value.trim().toUpperCase();
+    var discountValue = couponDiscountValue.value;
+    if (!code || discountValue === '') {
+      couponFormMsg.textContent = 'กรุณากรอกโค้ดและมูลค่าส่วนลด';
+      couponFormMsg.className = 'admin-msg error';
+      return;
+    }
+    couponSaveBtn.disabled = true;
+    var id = couponIdField.value;
+    var payload = {
+      code: code,
+      discount_type: couponDiscountType.value,
+      discount_value: discountValue,
+      max_uses: couponMaxUses.value,
+      active: id ? couponActive.checked : true
+    };
+    var request = id
+      ? api('/api/coupons/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      : api('/api/coupons', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    request.then(function (result) {
+      couponSaveBtn.disabled = false;
+      if (result.ok && result.data.success) {
+        couponFormMsg.textContent = 'บันทึกสำเร็จ';
+        couponFormMsg.className = 'admin-msg success';
+        resetCouponForm();
+        loadCoupons();
+      } else {
+        couponFormMsg.textContent = (result.data && result.data.error) || 'บันทึกไม่สำเร็จ';
+        couponFormMsg.className = 'admin-msg error';
+      }
+    }).catch(function (err) {
+      couponSaveBtn.disabled = false;
+      couponFormMsg.textContent = err.message || 'เกิดข้อผิดพลาด';
+      couponFormMsg.className = 'admin-msg error';
+    });
   });
 })();

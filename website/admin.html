@@ -52,6 +52,7 @@
     <button class="pill-btn" data-tab="qa">คำถามจากผู้เยี่ยมชม</button>
     <button class="pill-btn" data-tab="orders">คำสั่งซื้อ</button>
     <button class="pill-btn" data-tab="bookings">การจอง</button>
+    <button class="pill-btn" data-tab="coupons">คูปองส่วนลด</button>
   </div>
 
   <!-- ============ ATTRACTIONS TAB ============ -->
@@ -461,17 +462,7 @@
 
   <!-- ============ ORDERS TAB ============ -->
   <section id="tab-orders" class="container admin-panel" style="display:none;">
-    <div class="card admin-form" style="max-width:420px; margin-bottom:20px;">
-      <h3>ค่าจัดส่งมาตรฐาน (บาท)</h3>
-      <div class="form-field">
-        <label for="shipping-rate-input">ใช้กับทุกคำสั่งซื้อ</label>
-        <input id="shipping-rate-input" type="number" min="0" step="0.01" placeholder="เช่น 50">
-      </div>
-      <div class="admin-form-actions">
-        <button id="shipping-rate-save-btn" class="btn-primary">บันทึกค่าจัดส่ง</button>
-      </div>
-      <p id="shipping-rate-msg" class="admin-msg"></p>
-    </div>
+    <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 10px;">ค่าจัดส่งขึ้นอยู่กับที่อยู่ของแต่ละคำสั่งซื้อ ให้กรอกและบันทึกค่าจัดส่งแยกในแต่ละรายการด้านล่าง</p>
     <input type="text" id="orders-search" class="admin-search" placeholder="ค้นหาจากชื่อลูกค้าหรือวันที่...">
     <div id="orders-list" class="admin-list"></div>
   </section>
@@ -480,6 +471,50 @@
   <section id="tab-bookings" class="container admin-panel" style="display:none;">
     <input type="text" id="bookings-search" class="admin-search" placeholder="ค้นหาจากชื่อลูกค้า บริการ หรือวันที่...">
     <div id="bookings-list" class="admin-list"></div>
+  </section>
+
+  <!-- ============ COUPONS TAB ============ -->
+  <section id="tab-coupons" class="container admin-panel" style="display:none;">
+    <div class="admin-grid">
+      <div class="card admin-form">
+        <h3 id="coupon-form-title">เพิ่มคูปองส่วนลดใหม่</h3>
+        <input type="hidden" id="coupon-id">
+        <div class="form-field">
+          <label for="coupon-code">โค้ดคูปอง</label>
+          <input id="coupon-code" type="text" placeholder="เช่น WELCOME10" style="text-transform:uppercase;">
+        </div>
+        <div class="form-field">
+          <label for="coupon-discount-type">ประเภทส่วนลด</label>
+          <select id="coupon-discount-type">
+            <option value="percent">เปอร์เซ็นต์ (%)</option>
+            <option value="fixed">จำนวนเงิน (บาท)</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="coupon-discount-value">มูลค่าส่วนลด</label>
+          <input id="coupon-discount-value" type="number" min="0" step="0.01" placeholder="เช่น 10">
+        </div>
+        <div class="form-field">
+          <label for="coupon-max-uses">จำนวนครั้งที่ใช้ได้ (เว้นว่าง = ไม่จำกัด)</label>
+          <input id="coupon-max-uses" type="number" min="1" step="1" placeholder="เช่น 50">
+        </div>
+        <div class="form-field" id="coupon-active-field" style="display:none;">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input id="coupon-active" type="checkbox" style="width:auto;"> เปิดใช้งานคูปองนี้
+          </label>
+        </div>
+        <div class="admin-form-actions">
+          <button id="coupon-save-btn" class="btn-primary">บันทึก</button>
+          <button id="coupon-cancel-btn" class="btn-outline" style="display:none; color:var(--green-800); border-color:var(--green-800);">ยกเลิกแก้ไข</button>
+        </div>
+        <p id="coupon-form-msg" class="admin-msg"></p>
+      </div>
+
+      <div>
+        <input type="text" id="coupon-search" class="admin-search" placeholder="ค้นหาจากโค้ด...">
+        <div id="coupon-list" class="admin-list"></div>
+      </div>
+    </div>
   </section>
 </div>
 

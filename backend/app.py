@@ -176,9 +176,15 @@ def init_db():
         )
         db.execute(
             """
-            CREATE TABLE IF NOT EXISTS site_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL DEFAULT ''
+            CREATE TABLE IF NOT EXISTS coupons (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT NOT NULL UNIQUE,
+                discount_type TEXT NOT NULL CHECK (discount_type IN ('percent', 'fixed')),
+                discount_value REAL NOT NULL,
+                max_uses INTEGER,
+                used_count INTEGER NOT NULL DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
             )
             """
         )
@@ -192,7 +198,9 @@ def init_db():
                 notes TEXT,
                 items TEXT NOT NULL DEFAULT '[]',
                 subtotal REAL NOT NULL DEFAULT 0,
-                shipping_cost REAL NOT NULL DEFAULT 0,
+                coupon_code TEXT,
+                discount_amount REAL NOT NULL DEFAULT 0,
+                shipping_cost REAL,
                 total REAL NOT NULL DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'new',
                 created_at TEXT NOT NULL
@@ -335,6 +343,51 @@ def init_db():
             db.execute("ALTER TABLE attractions ADD COLUMN map_url TEXT")
             db.execute("ALTER TABLE attractions ADD COLUMN lat REAL")
             db.execute("ALTER TABLE attractions ADD COLUMN lng REAL")
+            db.commit()
+
+        # Add coupon/discount columns to orders if reusing a database from
+        # before the coupon system and per-order shipping existed.
+        existing_order_cols = {row[1] for row in db.execute("PRAGMA table_info(orders)").fetchall()}
+        if "coupon_code" not in existing_order_cols:
+            db.execute("ALTER TABLE orders ADD COLUMN coupon_code TEXT")
+            db.execute("ALTER TABLE orders ADD COLUMN discount_amount REAL NOT NULL DEFAULT 0")
+            db.commit()
+
+        # shipping_cost used to be NOT NULL DEFAULT 0 (one flat rate for every
+        # order). It is now nullable, since shipping is quoted per order and
+        # is unknown until the admin sets it. SQLite can't drop a NOT NULL
+        # constraint in place, so rebuild the table if an older one is found.
+        shipping_col = next(
+            (row for row in db.execute("PRAGMA table_info(orders)").fetchall() if row[1] == "shipping_cost"),
+            None,
+        )
+        if shipping_col is not None and shipping_col[3] == 1:  # row[3] is "notnull"
+            db.executescript(
+                """
+                CREATE TABLE orders_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer_name TEXT NOT NULL,
+                    customer_contact TEXT NOT NULL,
+                    customer_address TEXT NOT NULL,
+                    notes TEXT,
+                    items TEXT NOT NULL DEFAULT '[]',
+                    subtotal REAL NOT NULL DEFAULT 0,
+                    coupon_code TEXT,
+                    discount_amount REAL NOT NULL DEFAULT 0,
+                    shipping_cost REAL,
+                    total REAL NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'new',
+                    created_at TEXT NOT NULL
+                );
+                INSERT INTO orders_new (id, customer_name, customer_contact, customer_address, notes, items,
+                    subtotal, coupon_code, discount_amount, shipping_cost, total, status, created_at)
+                SELECT id, customer_name, customer_contact, customer_address, notes, items,
+                    subtotal, coupon_code, discount_amount, shipping_cost, total, status, created_at
+                FROM orders;
+                DROP TABLE orders;
+                ALTER TABLE orders_new RENAME TO orders;
+                """
+            )
             db.commit()
 
         # Add optional tag lists to products/services if reusing an older
@@ -556,12 +609,6 @@ def init_db():
             )
             db.commit()
 
-        # Seed a default flat shipping rate once.
-        seeded = db.execute("SELECT COUNT(*) FROM site_settings WHERE key = 'shipping_flat_rate'").fetchone()[0]
-        if seeded == 0:
-            db.execute("INSERT INTO site_settings (key, value) VALUES ('shipping_flat_rate', '50')")
-            db.commit()
-
 
 @app.get("/api/health")
 def health():
@@ -649,32 +696,117 @@ def answer_question(question_id):
     return jsonify({"success": True})
 
 
-# ============ SITE SETTINGS (shipping rate) ============
+# ============ COUPONS ============
 
-@app.get("/api/settings/shipping")
-def get_shipping_setting():
+def _coupon_public(row):
+    d = dict(row)
+    return {"code": d["code"], "discount_type": d["discount_type"], "discount_value": d["discount_value"]}
+
+
+def _apply_coupon(db, code, subtotal):
+    """A coupon code + order subtotal -> (coupon_row_or_None, discount_amount, error_or_None).
+    Does not mutate used_count — caller commits that only once the order is actually created."""
+    if not code:
+        return None, 0.0, None
+    row = db.execute("SELECT * FROM coupons WHERE code = ? AND active = 1", (code,)).fetchone()
+    if not row:
+        return None, 0.0, "โค้ดส่วนลดไม่ถูกต้องหรือหมดอายุแล้ว"
+    if row["max_uses"] is not None and row["used_count"] >= row["max_uses"]:
+        return None, 0.0, "โค้ดส่วนลดนี้ถูกใช้ครบจำนวนแล้ว"
+    if row["discount_type"] == "percent":
+        discount = subtotal * row["discount_value"] / 100.0
+    else:
+        discount = min(row["discount_value"], subtotal)
+    return row, discount, None
+
+
+@app.get("/api/coupons/validate/<code>")
+def validate_coupon(code):
     db = get_db()
-    row = db.execute("SELECT value FROM site_settings WHERE key = 'shipping_flat_rate'").fetchone()
-    rate = float(row["value"]) if row else 0.0
-    return jsonify({"shipping_flat_rate": rate})
+    row, discount, error = _apply_coupon(db, code.strip().upper(), 0)
+    if error:
+        return jsonify({"valid": False, "error": error}), 400
+    return jsonify({"valid": True, "coupon": _coupon_public(row)})
 
 
-@app.put("/api/settings/shipping")
+@app.get("/api/coupons")
 @require_admin
-def update_shipping_setting():
+def list_coupons():
+    db = get_db()
+    rows = db.execute("SELECT * FROM coupons ORDER BY created_at DESC").fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.post("/api/coupons")
+@require_admin
+def create_coupon():
     payload = request.get_json(silent=True) or {}
+    code = (payload.get("code") or "").strip().upper()
+    discount_type = (payload.get("discount_type") or "").strip()
     try:
-        rate = float(payload.get("shipping_flat_rate"))
+        discount_value = float(payload.get("discount_value"))
     except (TypeError, ValueError):
-        return jsonify({"success": False, "error": "กรุณากรอกค่าจัดส่งเป็นตัวเลข"}), 400
+        discount_value = None
+    max_uses = payload.get("max_uses")
+    try:
+        max_uses = int(max_uses) if max_uses not in (None, "") else None
+    except (TypeError, ValueError):
+        max_uses = None
+
+    if not code or discount_type not in ("percent", "fixed") or discount_value is None:
+        return jsonify({"success": False, "error": "กรุณากรอกโค้ด ประเภทส่วนลด และมูลค่าส่วนลดให้ครบถ้วน"}), 400
 
     db = get_db()
-    db.execute(
-        "INSERT INTO site_settings (key, value) VALUES ('shipping_flat_rate', ?) "
-        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        (str(rate),),
+    try:
+        cursor = db.execute(
+            "INSERT INTO coupons (code, discount_type, discount_value, max_uses, active, created_at) "
+            "VALUES (?, ?, ?, ?, 1, ?)",
+            (code, discount_type, discount_value, max_uses, datetime.now(timezone.utc).isoformat()),
+        )
+    except sqlite3.IntegrityError:
+        return jsonify({"success": False, "error": "มีโค้ดนี้อยู่แล้ว"}), 400
+    db.commit()
+    return jsonify({"success": True, "id": cursor.lastrowid}), 201
+
+
+@app.put("/api/coupons/<int:coupon_id>")
+@require_admin
+def update_coupon(coupon_id):
+    payload = request.get_json(silent=True) or {}
+    discount_type = (payload.get("discount_type") or "").strip()
+    try:
+        discount_value = float(payload.get("discount_value"))
+    except (TypeError, ValueError):
+        discount_value = None
+    max_uses = payload.get("max_uses")
+    try:
+        max_uses = int(max_uses) if max_uses not in (None, "") else None
+    except (TypeError, ValueError):
+        max_uses = None
+    active = 1 if payload.get("active") else 0
+
+    if discount_type not in ("percent", "fixed") or discount_value is None:
+        return jsonify({"success": False, "error": "กรุณากรอกประเภทส่วนลดและมูลค่าส่วนลดให้ครบถ้วน"}), 400
+
+    db = get_db()
+    result = db.execute(
+        "UPDATE coupons SET discount_type = ?, discount_value = ?, max_uses = ?, active = ? WHERE id = ?",
+        (discount_type, discount_value, max_uses, active, coupon_id),
     )
     db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบโค้ดนี้"}), 404
+    return jsonify({"success": True})
+
+
+@app.delete("/api/coupons/<int:coupon_id>")
+@require_admin
+def delete_coupon(coupon_id):
+    db = get_db()
+    result = db.execute("DELETE FROM coupons WHERE id = ?", (coupon_id,))
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบโค้ดนี้"}), 404
     return jsonify({"success": True})
 
 
@@ -688,6 +820,7 @@ def create_order():
     customer_address = (payload.get("customer_address") or "").strip()
     notes = (payload.get("notes") or "").strip() or None
     cart_items = payload.get("items")
+    coupon_code = (payload.get("coupon_code") or "").strip().upper() or None
 
     if not customer_name or not customer_contact or not customer_address:
         return jsonify({"success": False, "error": "กรุณากรอกชื่อ ช่องทางติดต่อ และที่อยู่จัดส่งให้ครบถ้วน"}), 400
@@ -720,20 +853,28 @@ def create_order():
     if not resolved_items:
         return jsonify({"success": False, "error": "สินค้าที่เลือกไม่สามารถสั่งซื้อได้ (อาจไม่มีราคาแล้ว)"}), 400
 
-    shipping_row = db.execute("SELECT value FROM site_settings WHERE key = 'shipping_flat_rate'").fetchone()
-    shipping_cost = float(shipping_row["value"]) if shipping_row else 0.0
-    total = subtotal + shipping_cost
+    coupon_row, discount_amount, coupon_error = _apply_coupon(db, coupon_code, subtotal)
+    if coupon_code and coupon_error:
+        return jsonify({"success": False, "error": coupon_error}), 400
+
+    # Shipping is quoted per order by the admin afterwards, since it depends
+    # on the delivery address — it starts unset (null) rather than a guess.
+    total = subtotal - discount_amount
 
     cursor = db.execute(
         "INSERT INTO orders (customer_name, customer_contact, customer_address, notes, items, "
-        "subtotal, shipping_cost, total, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)",
+        "subtotal, coupon_code, discount_amount, shipping_cost, total, status, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 'new', ?)",
         (customer_name, customer_contact, customer_address, notes, json.dumps(resolved_items),
-         subtotal, shipping_cost, total, datetime.now(timezone.utc).isoformat()),
+         subtotal, coupon_row["code"] if coupon_row else None, discount_amount, total,
+         datetime.now(timezone.utc).isoformat()),
     )
+    if coupon_row:
+        db.execute("UPDATE coupons SET used_count = used_count + 1 WHERE id = ?", (coupon_row["id"],))
     db.commit()
     return jsonify({
         "success": True, "id": cursor.lastrowid,
-        "subtotal": subtotal, "shipping_cost": shipping_cost, "total": total,
+        "subtotal": subtotal, "discount_amount": discount_amount, "total": total,
     }), 201
 
 
@@ -757,15 +898,35 @@ def list_orders():
 @require_admin
 def update_order_status(order_id):
     payload = request.get_json(silent=True) or {}
-    status = (payload.get("status") or "").strip()
-    if status not in ("new", "confirmed", "shipped", "done"):
-        return jsonify({"success": False, "error": "สถานะไม่ถูกต้อง"}), 400
-
     db = get_db()
-    result = db.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
-    db.commit()
-    if result.rowcount == 0:
+    row = db.execute("SELECT subtotal, discount_amount FROM orders WHERE id = ?", (order_id,)).fetchone()
+    if not row:
         return jsonify({"success": False, "error": "ไม่พบคำสั่งซื้อนี้"}), 404
+
+    fields, values = [], []
+    if "status" in payload:
+        status = (payload.get("status") or "").strip()
+        if status not in ("new", "confirmed", "shipped", "done"):
+            return jsonify({"success": False, "error": "สถานะไม่ถูกต้อง"}), 400
+        fields.append("status = ?")
+        values.append(status)
+    if "shipping_cost" in payload:
+        try:
+            shipping_cost = float(payload.get("shipping_cost"))
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "กรุณากรอกค่าจัดส่งเป็นตัวเลข"}), 400
+        total = row["subtotal"] - row["discount_amount"] + shipping_cost
+        fields.append("shipping_cost = ?")
+        values.append(shipping_cost)
+        fields.append("total = ?")
+        values.append(total)
+
+    if not fields:
+        return jsonify({"success": False, "error": "ไม่มีข้อมูลให้บันทึก"}), 400
+
+    values.append(order_id)
+    db.execute("UPDATE orders SET " + ", ".join(fields) + " WHERE id = ?", values)
+    db.commit()
     return jsonify({"success": True})
 
 
