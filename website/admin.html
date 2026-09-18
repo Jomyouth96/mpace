@@ -91,7 +91,10 @@
         <p id="attraction-form-msg" class="admin-msg"></p>
       </div>
 
-      <div id="attraction-list" class="admin-list"></div>
+      <div>
+        <input type="text" id="attraction-search" class="admin-search" placeholder="ค้นหาจากชื่อสถานที่...">
+        <div id="attraction-list" class="admin-list"></div>
+      </div>
     </div>
   </section>
 
@@ -124,7 +127,10 @@
         <p id="nearby-form-msg" class="admin-msg"></p>
       </div>
 
-      <div id="nearby-list" class="admin-list"></div>
+      <div>
+        <input type="text" id="nearby-search" class="admin-search" placeholder="ค้นหาจากชื่อสถานที่...">
+        <div id="nearby-list" class="admin-list"></div>
+      </div>
     </div>
   </section>
 
@@ -176,6 +182,10 @@
           <input id="product-price" type="text" placeholder="฿120 / กก.">
         </div>
         <div class="form-field">
+          <label for="product-tags">แท็ก (คั่นด้วยจุลภาค เช่น อินทรีย์, ของฝาก)</label>
+          <input id="product-tags" type="text" placeholder="เช่น อินทรีย์, ของฝาก">
+        </div>
+        <div class="form-field">
           <label>รูปภาพ (เพิ่มได้หลายรูป)</label>
           <div id="product-images-picker"></div>
         </div>
@@ -186,7 +196,10 @@
         <p id="product-form-msg" class="admin-msg"></p>
       </div>
 
-      <div id="product-list" class="admin-list"></div>
+      <div>
+        <input type="text" id="product-search" class="admin-search" placeholder="ค้นหาจากชื่อหรือแท็ก...">
+        <div id="product-list" class="admin-list"></div>
+      </div>
     </div>
   </section>
 
@@ -243,6 +256,10 @@
           <label for="service-awards">รางวัล (ถ้ามี)</label>
           <input id="service-awards" type="text" placeholder="เช่น รางวัลร้านอาหารสะอาดปี 2568">
         </div>
+        <div class="form-field">
+          <label for="service-tags">แท็ก (คั่นด้วยจุลภาค เช่น ประวัติศาสตร์, ภาษาอังกฤษ)</label>
+          <input id="service-tags" type="text" placeholder="เช่น ประวัติศาสตร์, ภาษาอังกฤษ">
+        </div>
 
         <div class="admin-form-actions">
           <button id="service-save-btn" class="btn-primary">บันทึกบริการ</button>
@@ -251,7 +268,10 @@
         <p id="service-form-msg" class="admin-msg"></p>
       </div>
 
-      <div id="service-list" class="admin-list"></div>
+      <div>
+        <input type="text" id="service-search" class="admin-search" placeholder="ค้นหาจากชื่อหรือแท็ก...">
+        <div id="service-list" class="admin-list"></div>
+      </div>
     </div>
   </section>
 
@@ -304,12 +324,16 @@
         <p id="story-form-msg" class="admin-msg"></p>
       </div>
 
-      <div id="story-list" class="admin-list"></div>
+      <div>
+        <input type="text" id="story-search" class="admin-search" placeholder="ค้นหาจากชื่อบทความหรือวันที่ (เช่น 2026-09)...">
+        <div id="story-list" class="admin-list"></div>
+      </div>
     </div>
   </section>
 
   <!-- ============ Q&A TAB ============ -->
   <section id="tab-qa" class="container admin-panel" style="display:none;">
+    <input type="text" id="qa-search" class="admin-search" placeholder="ค้นหาจากชื่อ วันที่ หรือคำถาม...">
     <div id="qa-admin-list" class="admin-list"></div>
   </section>
 </div>

@@ -262,13 +262,22 @@
 
   attractionCancelBtn.addEventListener('click', resetAttractionForm);
 
+  var attractionSearch = document.getElementById('attraction-search');
+  var attractionsCache = [];
+
   function loadAttractions() {
     api('/api/attractions').then(function (result) {
       if (!result.ok) return;
-      var places = result.data;
+      attractionsCache = result.data;
+      renderAttractionList(attractionsCache);
+    });
+  }
+
+  function renderAttractionList(places) {
       attractionList.innerHTML = '';
       if (places.length === 0) {
-        attractionList.innerHTML = '<div class="admin-empty">ยังไม่มีแหล่งท่องเที่ยว</div>';
+        attractionList.innerHTML = '<div class="admin-empty">' +
+          (attractionsCache.length === 0 ? 'ยังไม่มีแหล่งท่องเที่ยว' : 'ไม่พบแหล่งท่องเที่ยวที่ตรงกับการค้นหา') + '</div>';
         return;
       }
       places.forEach(function (place) {
@@ -304,8 +313,12 @@
         });
         attractionList.appendChild(item);
       });
-    });
   }
+
+  attractionSearch.addEventListener('input', function () {
+    var q = attractionSearch.value.trim().toLowerCase();
+    renderAttractionList(q ? attractionsCache.filter(function (p) { return p.name.toLowerCase().indexOf(q) !== -1; }) : attractionsCache);
+  });
 
   attractionSaveBtn.addEventListener('click', function () {
     var name = attractionName.value.trim();
@@ -375,13 +388,22 @@
 
   nearbyCancelBtn.addEventListener('click', resetNearbyForm);
 
+  var nearbySearch = document.getElementById('nearby-search');
+  var nearbyCache = [];
+
   function loadNearby() {
     api('/api/nearby-attractions').then(function (result) {
       if (!result.ok) return;
-      var items = result.data;
+      nearbyCache = result.data;
+      renderNearbyList(nearbyCache);
+    });
+  }
+
+  function renderNearbyList(items) {
       nearbyList.innerHTML = '';
       if (items.length === 0) {
-        nearbyList.innerHTML = '<div class="admin-empty">ยังไม่มีข้อมูล</div>';
+        nearbyList.innerHTML = '<div class="admin-empty">' +
+          (nearbyCache.length === 0 ? 'ยังไม่มีข้อมูล' : 'ไม่พบรายการที่ตรงกับการค้นหา') + '</div>';
         return;
       }
       items.forEach(function (place) {
@@ -412,8 +434,12 @@
         });
         nearbyList.appendChild(item);
       });
-    });
   }
+
+  nearbySearch.addEventListener('input', function () {
+    var q = nearbySearch.value.trim().toLowerCase();
+    renderNearbyList(q ? nearbyCache.filter(function (p) { return p.name.toLowerCase().indexOf(q) !== -1; }) : nearbyCache);
+  });
 
   nearbySaveBtn.addEventListener('click', function () {
     var area = nearbyArea.value.trim();
@@ -531,6 +557,7 @@
   var productName = document.getElementById('product-name');
   var productDescription = document.getElementById('product-description');
   var productPrice = document.getElementById('product-price');
+  var productTags = document.getElementById('product-tags');
   var productImages = createImagePicker('product-images-picker');
   var productFormTitle = document.getElementById('product-form-title');
   var productSaveBtn = document.getElementById('product-save-btn');
@@ -544,6 +571,7 @@
     productName.value = '';
     productDescription.value = '';
     productPrice.value = '';
+    productTags.value = '';
     productImages.setImages([]);
     productFormTitle.textContent = 'เพิ่มสินค้าใหม่';
     productCancelBtn.style.display = 'none';
@@ -552,17 +580,27 @@
 
   productCancelBtn.addEventListener('click', resetProductForm);
 
+  var productSearch = document.getElementById('product-search');
+  var productsCache = [];
+
   function loadProducts() {
     api('/api/products').then(function (result) {
       if (!result.ok) return;
-      var products = result.data;
+      productsCache = result.data;
+      renderProductList(productsCache);
+    });
+  }
+
+  function renderProductList(products) {
       productList.innerHTML = '';
       if (products.length === 0) {
-        productList.innerHTML = '<div class="admin-empty">ยังไม่มีสินค้า</div>';
+        productList.innerHTML = '<div class="admin-empty">' +
+          (productsCache.length === 0 ? 'ยังไม่มีสินค้า' : 'ไม่พบสินค้าที่ตรงกับการค้นหา') + '</div>';
         return;
       }
       products.forEach(function (p) {
         var img = (p.images && p.images[0]) ? p.images[0] : null;
+        var tags = p.tags || [];
         var item = document.createElement('div');
         item.className = 'card admin-item';
         item.innerHTML =
@@ -570,7 +608,7 @@
           '<div class="admin-item-body">' +
             '<h5>' + escapeHtml(p.name) + '</h5>' +
             '<p>' + escapeHtml(p.description) + '</p>' +
-            '<div class="admin-item-meta">' + escapeHtml(p.price_text || '') + (p.images ? ' · ' + p.images.length + ' รูป' : '') + '</div>' +
+            '<div class="admin-item-meta">' + escapeHtml(p.price_text || '') + (p.images ? ' · ' + p.images.length + ' รูป' : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + '</div>' +
           '</div>' +
           '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
         item.querySelector('.edit-btn').addEventListener('click', function () {
@@ -578,6 +616,7 @@
           productName.value = p.name;
           productDescription.value = p.description;
           productPrice.value = p.price_text || '';
+          productTags.value = tags.join(', ');
           productImages.setImages(p.images || []);
           productFormTitle.textContent = 'แก้ไขสินค้า';
           productCancelBtn.style.display = 'inline-block';
@@ -589,8 +628,14 @@
         });
         productList.appendChild(item);
       });
-    });
   }
+
+  productSearch.addEventListener('input', function () {
+    var q = productSearch.value.trim().toLowerCase();
+    renderProductList(q ? productsCache.filter(function (p) {
+      return p.name.toLowerCase().indexOf(q) !== -1 || (p.tags || []).join(' ').toLowerCase().indexOf(q) !== -1;
+    }) : productsCache);
+  });
 
   productSaveBtn.addEventListener('click', function () {
     var name = productName.value.trim();
@@ -603,7 +648,8 @@
     productSaveBtn.disabled = true;
     productImages.uploadAndGetImages().then(function (images) {
       var id = productIdField.value;
-      var payload = { name: name, description: description, price_text: productPrice.value.trim(), images: images };
+      var tags = productTags.value.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+      var payload = { name: name, description: description, price_text: productPrice.value.trim(), tags: tags, images: images };
       return id
         ? api('/api/products/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         : api('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -649,6 +695,7 @@
   var serviceLanguages = document.getElementById('service-languages');
   var serviceLicense = document.getElementById('service-license');
   var serviceAwards = document.getElementById('service-awards');
+  var serviceTags = document.getElementById('service-tags');
   var serviceFormTitle = document.getElementById('service-form-title');
   var serviceSaveBtn = document.getElementById('service-save-btn');
   var serviceCancelBtn = document.getElementById('service-cancel-btn');
@@ -686,6 +733,7 @@
     serviceLanguages.value = '';
     serviceLicense.value = '';
     serviceAwards.value = '';
+    serviceTags.value = '';
     updateServiceFieldVisibility();
     serviceFormTitle.textContent = 'เพิ่มบริการใหม่';
     serviceCancelBtn.style.display = 'none';
@@ -694,17 +742,27 @@
 
   serviceCancelBtn.addEventListener('click', resetServiceForm);
 
+  var serviceSearch = document.getElementById('service-search');
+  var servicesCache = [];
+
   function loadServices() {
     api('/api/services').then(function (result) {
       if (!result.ok) return;
-      var services = result.data;
+      servicesCache = result.data;
+      renderServiceList(servicesCache);
+    });
+  }
+
+  function renderServiceList(services) {
       serviceList.innerHTML = '';
       if (services.length === 0) {
-        serviceList.innerHTML = '<div class="admin-empty">ยังไม่มีบริการ</div>';
+        serviceList.innerHTML = '<div class="admin-empty">' +
+          (servicesCache.length === 0 ? 'ยังไม่มีบริการ' : 'ไม่พบบริการที่ตรงกับการค้นหา') + '</div>';
         return;
       }
       services.forEach(function (s) {
         var img = (s.images && s.images[0]) ? s.images[0] : null;
+        var tags = s.tags || [];
         var item = document.createElement('div');
         item.className = 'card admin-item';
         item.innerHTML =
@@ -712,7 +770,7 @@
           '<div class="admin-item-body">' +
             '<h5>' + escapeHtml(s.name) + '</h5>' +
             '<p>' + escapeHtml(s.description) + '</p>' +
-            '<div class="admin-item-meta">' + SERVICE_TYPE_LABELS[s.service_type] + (s.price_text ? ' · ' + escapeHtml(s.price_text) : '') + '</div>' +
+            '<div class="admin-item-meta">' + SERVICE_TYPE_LABELS[s.service_type] + (s.price_text ? ' · ' + escapeHtml(s.price_text) : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + '</div>' +
           '</div>' +
           '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
         item.querySelector('.edit-btn').addEventListener('click', function () {
@@ -727,6 +785,7 @@
           serviceLanguages.value = s.languages || '';
           serviceLicense.value = s.license_no || '';
           serviceAwards.value = s.awards || '';
+          serviceTags.value = tags.join(', ');
           updateServiceFieldVisibility();
           serviceFormTitle.textContent = 'แก้ไขบริการ';
           serviceCancelBtn.style.display = 'inline-block';
@@ -738,8 +797,14 @@
         });
         serviceList.appendChild(item);
       });
-    });
   }
+
+  serviceSearch.addEventListener('input', function () {
+    var q = serviceSearch.value.trim().toLowerCase();
+    renderServiceList(q ? servicesCache.filter(function (s) {
+      return s.name.toLowerCase().indexOf(q) !== -1 || (s.tags || []).join(' ').toLowerCase().indexOf(q) !== -1;
+    }) : servicesCache);
+  });
 
   serviceSaveBtn.addEventListener('click', function () {
     var name = serviceName.value.trim();
@@ -762,7 +827,8 @@
         includes_text: serviceIncludes.value.trim(),
         languages: serviceLanguages.value.trim(),
         license_no: serviceLicense.value.trim(),
-        awards: serviceAwards.value.trim()
+        awards: serviceAwards.value.trim(),
+        tags: serviceTags.value.split(',').map(function (t) { return t.trim(); }).filter(Boolean)
       };
       return id
         ? api('/api/services/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
@@ -819,13 +885,22 @@
 
   storyCancelBtn.addEventListener('click', resetStoryForm);
 
+  var storySearch = document.getElementById('story-search');
+  var storiesCache = [];
+
   function loadStories() {
     api('/api/stories').then(function (result) {
       if (!result.ok) return;
-      var stories = result.data;
+      storiesCache = result.data;
+      renderStoryList(storiesCache);
+    });
+  }
+
+  function renderStoryList(stories) {
       storyList.innerHTML = '';
       if (stories.length === 0) {
-        storyList.innerHTML = '<div class="admin-empty">ยังไม่มีบทความ เพิ่มบทความแรกได้จากฟอร์มด้านซ้าย</div>';
+        storyList.innerHTML = '<div class="admin-empty">' +
+          (storiesCache.length === 0 ? 'ยังไม่มีบทความ เพิ่มบทความแรกได้จากฟอร์มด้านซ้าย' : 'ไม่พบบทความที่ตรงกับการค้นหา') + '</div>';
         return;
       }
       stories.forEach(function (story) {
@@ -864,8 +939,14 @@
         });
         storyList.appendChild(item);
       });
-    });
   }
+
+  storySearch.addEventListener('input', function () {
+    var q = storySearch.value.trim().toLowerCase();
+    renderStoryList(q ? storiesCache.filter(function (s) {
+      return s.title.toLowerCase().indexOf(q) !== -1 || (s.published_at || '').indexOf(q) !== -1;
+    }) : storiesCache);
+  });
 
   storySaveBtn.addEventListener('click', function () {
     var title = storyTitle.value.trim();
@@ -909,13 +990,22 @@
   // ============ Q&A ============
   var qaList = document.getElementById('qa-admin-list');
 
+  var qaSearch = document.getElementById('qa-search');
+  var qaCache = [];
+
   function loadQuestions() {
     api('/api/qa').then(function (result) {
       if (!result.ok) return;
-      var questions = result.data;
+      qaCache = result.data;
+      renderQuestionList(qaCache);
+    });
+  }
+
+  function renderQuestionList(questions) {
       qaList.innerHTML = '';
       if (questions.length === 0) {
-        qaList.innerHTML = '<div class="admin-empty">ยังไม่มีคำถามเข้ามา</div>';
+        qaList.innerHTML = '<div class="admin-empty">' +
+          (qaCache.length === 0 ? 'ยังไม่มีคำถามเข้ามา' : 'ไม่พบคำถามที่ตรงกับการค้นหา') + '</div>';
         return;
       }
       questions.forEach(function (q) {
@@ -945,6 +1035,14 @@
         }
         qaList.appendChild(item);
       });
-    });
   }
+
+  qaSearch.addEventListener('input', function () {
+    var q = qaSearch.value.trim().toLowerCase();
+    renderQuestionList(q ? qaCache.filter(function (x) {
+      return x.name.toLowerCase().indexOf(q) !== -1 ||
+        (x.question || '').toLowerCase().indexOf(q) !== -1 ||
+        (x.created_at || '').indexOf(q) !== -1;
+    }) : qaCache);
+  });
 })();

@@ -108,13 +108,18 @@ def _images_to_db(images):
 
 
 def _row_with_images(row):
-    """A sqlite3.Row (or dict) with a JSON `images` column -> a plain dict with
-    `images` decoded back into a real list, for clean JSON responses."""
+    """A sqlite3.Row (or dict) with JSON `images`/`tags` columns -> a plain
+    dict with those decoded back into real lists, for clean JSON responses."""
     d = dict(row)
     try:
         d["images"] = json.loads(d.get("images") or "[]")
     except (TypeError, ValueError):
         d["images"] = []
+    if "tags" in d:
+        try:
+            d["tags"] = json.loads(d.get("tags") or "[]")
+        except (TypeError, ValueError):
+            d["tags"] = []
     return d
 
 
@@ -267,6 +272,17 @@ def init_db():
             db.execute("ALTER TABLE attractions ADD COLUMN map_url TEXT")
             db.execute("ALTER TABLE attractions ADD COLUMN lat REAL")
             db.execute("ALTER TABLE attractions ADD COLUMN lng REAL")
+            db.commit()
+
+        # Add optional tag lists to products/services if reusing an older
+        # database that predates this feature.
+        existing_product_cols = {row[1] for row in db.execute("PRAGMA table_info(products)").fetchall()}
+        if "tags" not in existing_product_cols:
+            db.execute("ALTER TABLE products ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+            db.commit()
+        existing_service_cols = {row[1] for row in db.execute("PRAGMA table_info(services)").fetchall()}
+        if "tags" not in existing_service_cols:
+            db.execute("ALTER TABLE services ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
             db.commit()
 
         # Add optional English/Chinese translation columns to stories if
@@ -663,6 +679,7 @@ def _parse_product_payload(payload):
         "description": (payload.get("description") or "").strip(),
         "price_text": (payload.get("price_text") or "").strip() or None,
         "images": _images_to_db(payload.get("images")),
+        "tags": _images_to_db(payload.get("tags")),
         "sort_order": int(payload.get("sort_order") or 0),
     }
 
@@ -676,9 +693,9 @@ def create_product():
 
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO products (kind, name, description, price_text, images, sort_order, created_at) "
-        "VALUES ('product', ?, ?, ?, ?, ?, ?)",
-        (data["name"], data["description"], data["price_text"], data["images"],
+        "INSERT INTO products (kind, name, description, price_text, images, tags, sort_order, created_at) "
+        "VALUES ('product', ?, ?, ?, ?, ?, ?, ?)",
+        (data["name"], data["description"], data["price_text"], data["images"], data["tags"],
          data["sort_order"], datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
@@ -694,9 +711,9 @@ def update_product(product_id):
 
     db = get_db()
     result = db.execute(
-        "UPDATE products SET name = ?, description = ?, price_text = ?, images = ?, sort_order = ? "
+        "UPDATE products SET name = ?, description = ?, price_text = ?, images = ?, tags = ?, sort_order = ? "
         "WHERE id = ? AND kind = 'product'",
-        (data["name"], data["description"], data["price_text"], data["images"],
+        (data["name"], data["description"], data["price_text"], data["images"], data["tags"],
          data["sort_order"], product_id),
     )
     db.commit()
@@ -740,6 +757,7 @@ def _parse_service_payload(payload):
         "languages": (payload.get("languages") or "").strip() or None,
         "license_no": (payload.get("license_no") or "").strip() or None,
         "awards": (payload.get("awards") or "").strip() or None,
+        "tags": _images_to_db(payload.get("tags")),
         "sort_order": int(payload.get("sort_order") or 0),
     }
 
@@ -754,11 +772,11 @@ def create_service():
     db = get_db()
     cursor = db.execute(
         "INSERT INTO services (service_type, name, description, images, price_text, schedule_text, "
-        "includes_text, languages, license_no, awards, sort_order, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "includes_text, languages, license_no, awards, tags, sort_order, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (data["service_type"], data["name"], data["description"], data["images"], data["price_text"],
          data["schedule_text"], data["includes_text"], data["languages"], data["license_no"],
-         data["awards"], data["sort_order"], datetime.now(timezone.utc).isoformat()),
+         data["awards"], data["tags"], data["sort_order"], datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
     return jsonify({"success": True, "id": cursor.lastrowid}), 201
@@ -774,11 +792,11 @@ def update_service(service_id):
     db = get_db()
     result = db.execute(
         "UPDATE services SET service_type = ?, name = ?, description = ?, images = ?, price_text = ?, "
-        "schedule_text = ?, includes_text = ?, languages = ?, license_no = ?, awards = ?, sort_order = ? "
-        "WHERE id = ?",
+        "schedule_text = ?, includes_text = ?, languages = ?, license_no = ?, awards = ?, tags = ?, "
+        "sort_order = ? WHERE id = ?",
         (data["service_type"], data["name"], data["description"], data["images"], data["price_text"],
          data["schedule_text"], data["includes_text"], data["languages"], data["license_no"],
-         data["awards"], data["sort_order"], service_id),
+         data["awards"], data["tags"], data["sort_order"], service_id),
     )
     db.commit()
     if result.rowcount == 0:

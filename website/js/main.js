@@ -490,6 +490,7 @@ var Modal = (function () {
 (function () {
   var grid = document.getElementById('story-grid');
   if (!grid) return;
+  var searchInput = document.getElementById('story-search');
 
   var allStories = [];
 
@@ -509,13 +510,15 @@ var Modal = (function () {
   }
 
   function render() {
+    var q = (searchInput.value || '').trim().toLowerCase();
     var visible = allStories
       .map(function (s) { return { s: s, l: localize(s) }; })
-      .filter(function (x) { return x.l; });
+      .filter(function (x) { return x.l; })
+      .filter(function (x) { return !q || x.l.title.toLowerCase().indexOf(q) !== -1 || (x.s.published_at || '').indexOf(q) !== -1; });
 
     if (!visible.length) {
-      grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' +
-        (window.t ? window.t(allStories.length ? 'no_stories_lang' : 'err_load_stories') : '') + '</p>';
+      grid.innerHTML = '<p class="no-results">' +
+        (window.t ? window.t(!allStories.length ? 'err_load_stories' : (q ? 'no_results' : 'no_stories_lang')) : '') + '</p>';
       return;
     }
 
@@ -553,13 +556,19 @@ var Modal = (function () {
       grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_stories') : '') + '</p>';
     });
 
+  searchInput.addEventListener('input', render);
   window.addEventListener('langchange', render);
 })();
 
-// ============ PRODUCTS (dynamic) ============
+// ============ PRODUCTS (dynamic, searchable + tag-filterable) ============
 (function () {
   var productGrid = document.getElementById('product-grid');
   if (!productGrid) return;
+  var searchInput = document.getElementById('product-search');
+  var tagFiltersEl = document.getElementById('product-tag-filters');
+
+  var allProducts = [];
+  var activeTag = 'all';
 
   function renderProductCard(p) {
     var cover = renderCoverHtml(
@@ -567,45 +576,86 @@ var Modal = (function () {
       '<div class="thumb"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#1B4D2E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div>'
     );
     var priceHtml = p.price_text ? '<div class="product-price">' + escapeHtml(p.price_text) + '</div>' : '';
+    var tagsHtml = (p.tags && p.tags.length)
+      ? '<div>' + p.tags.map(function (t) { return '<span class="tag-chip">' + escapeHtml(t) + '</span>'; }).join('') + '</div>'
+      : '';
     return (
       '<div class="card clickable product-card" data-id="' + p.id + '">' + cover +
       '<div class="body">' +
         '<h4>' + escapeHtml(p.name) + '</h4>' +
         '<p>' + escapeHtml(p.description) + '</p>' +
+        tagsHtml +
         priceHtml +
       '</div></div>'
     );
   }
 
+  function renderTagFilters() {
+    var tagSet = {};
+    allProducts.forEach(function (p) { (p.tags || []).forEach(function (t) { tagSet[t] = true; }); });
+    var tags = Object.keys(tagSet);
+    if (!tags.length) { tagFiltersEl.style.display = 'none'; return; }
+    tagFiltersEl.style.display = 'flex';
+    tagFiltersEl.innerHTML = '<button type="button" class="pill-btn' + (activeTag === 'all' ? ' active' : '') + '" data-tag="all">' + (window.t ? window.t('tag_all') : 'ทั้งหมด') + '</button>' +
+      tags.map(function (t) {
+        return '<button type="button" class="pill-btn' + (activeTag === t ? ' active' : '') + '" data-tag="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>';
+      }).join('');
+    tagFiltersEl.querySelectorAll('.pill-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        activeTag = btn.getAttribute('data-tag');
+        render();
+      });
+    });
+  }
+
+  function render() {
+    var q = (searchInput.value || '').trim().toLowerCase();
+    var visible = allProducts.filter(function (p) {
+      var matchesTag = activeTag === 'all' || (p.tags || []).indexOf(activeTag) !== -1;
+      var matchesQuery = !q || p.name.toLowerCase().indexOf(q) !== -1 || (p.tags || []).join(' ').toLowerCase().indexOf(q) !== -1;
+      return matchesTag && matchesQuery;
+    });
+    productGrid.innerHTML = visible.length
+      ? visible.map(renderProductCard).join('')
+      : '<p class="no-results">' + (window.t ? window.t(allProducts.length ? 'no_results' : 'err_load_products') : '') + '</p>';
+    startCardCarousels(productGrid);
+    productGrid.querySelectorAll('.product-card').forEach(function (card) {
+      card.addEventListener('click', function () {
+        var p = allProducts.find(function (x) { return String(x.id) === card.getAttribute('data-id'); });
+        if (p) Modal.open({ title: p.name, images: p.images, desc: p.description, priceText: p.price_text });
+      });
+    });
+  }
+
+  searchInput.addEventListener('input', render);
+  window.addEventListener('langchange', function () { renderTagFilters(); render(); });
+
   fetch(API_BASE + '/api/products')
     .then(function (res) { return res.json(); })
     .then(function (products) {
-      productGrid.innerHTML = products.length
-        ? products.map(renderProductCard).join('')
-        : '<p style="color:var(--text-muted); font-size:14px;">ยังไม่มีสินค้าในขณะนี้</p>';
-      startCardCarousels(productGrid);
-      productGrid.querySelectorAll('.product-card').forEach(function (card) {
-        card.addEventListener('click', function () {
-          var p = products.find(function (x) { return String(x.id) === card.getAttribute('data-id'); });
-          if (p) Modal.open({ title: p.name, images: p.images, desc: p.description, priceText: p.price_text });
-        });
-      });
+      allProducts = products;
+      renderTagFilters();
+      render();
     })
     .catch(function () {
       productGrid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_products') : '') + '</p>';
     });
 })();
 
-// ============ SERVICES (dynamic, grouped by type) ============
+// ============ SERVICES (dynamic, grouped by type, searchable + tag-filterable) ============
 (function () {
   var wrap = document.getElementById('service-groups');
   if (!wrap) return;
+  var searchInput = document.getElementById('service-search');
+  var tagFiltersEl = document.getElementById('service-tag-filters');
 
   var TYPE_LABELS = {
     tour: 'ทัวร์', guide: 'ไกด์ชุมชน', restaurant: 'ร้านอาหาร',
     massage: 'นวดไทย', driver: 'บริการรถรับส่ง'
   };
   var TYPE_ORDER = ['tour', 'guide', 'restaurant', 'massage', 'driver'];
+  var allServices = [];
+  var activeTag = 'all';
 
   function fieldsFor(s) {
     var fields = [];
@@ -630,47 +680,85 @@ var Modal = (function () {
       '<div class="thumb"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#1B4D2E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>'
     );
     var priceHtml = s.price_text ? '<div class="product-price">' + escapeHtml(s.price_text) + '</div>' : '';
+    var tagsHtml = (s.tags && s.tags.length)
+      ? '<div>' + s.tags.map(function (t) { return '<span class="tag-chip">' + escapeHtml(t) + '</span>'; }).join('') + '</div>'
+      : '';
     return (
       '<div class="card clickable product-card" data-id="' + s.id + '">' + cover +
       '<div class="body">' +
         '<h4>' + escapeHtml(s.name) + '</h4>' +
         '<p>' + escapeHtml(s.description) + '</p>' +
+        tagsHtml +
         priceHtml +
       '</div></div>'
     );
   }
 
+  function renderTagFilters() {
+    var tagSet = {};
+    allServices.forEach(function (s) { (s.tags || []).forEach(function (t) { tagSet[t] = true; }); });
+    var tags = Object.keys(tagSet);
+    if (!tags.length) { tagFiltersEl.style.display = 'none'; return; }
+    tagFiltersEl.style.display = 'flex';
+    tagFiltersEl.innerHTML = '<button type="button" class="pill-btn' + (activeTag === 'all' ? ' active' : '') + '" data-tag="all">' + (window.t ? window.t('tag_all') : 'ทั้งหมด') + '</button>' +
+      tags.map(function (t) {
+        return '<button type="button" class="pill-btn' + (activeTag === t ? ' active' : '') + '" data-tag="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>';
+      }).join('');
+    tagFiltersEl.querySelectorAll('.pill-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        activeTag = btn.getAttribute('data-tag');
+        render();
+      });
+    });
+  }
+
+  function render() {
+    var q = (searchInput.value || '').trim().toLowerCase();
+    var visible = allServices.filter(function (s) {
+      var matchesTag = activeTag === 'all' || (s.tags || []).indexOf(activeTag) !== -1;
+      var matchesQuery = !q || s.name.toLowerCase().indexOf(q) !== -1 || (s.tags || []).join(' ').toLowerCase().indexOf(q) !== -1;
+      return matchesTag && matchesQuery;
+    });
+
+    if (!visible.length) {
+      wrap.innerHTML = '<p class="no-results">' + (window.t ? window.t(allServices.length ? 'no_results' : 'err_load_services') : '') + '</p>';
+      return;
+    }
+    var html = '';
+    TYPE_ORDER.forEach(function (type) {
+      var items = visible.filter(function (s) { return s.service_type === type; });
+      if (!items.length) return;
+      html += '<div class="service-type-head"><h4>' + TYPE_LABELS[type] + '</h4></div>';
+      html += '<div class="product-grid">' + items.map(renderServiceCard).join('') + '</div>';
+    });
+    wrap.innerHTML = html;
+    startCardCarousels(wrap);
+    wrap.querySelectorAll('.product-card').forEach(function (card) {
+      card.addEventListener('click', function () {
+        var s = allServices.find(function (x) { return String(x.id) === card.getAttribute('data-id'); });
+        if (s) {
+          Modal.open({
+            title: s.name,
+            tag: TYPE_LABELS[s.service_type],
+            images: s.images,
+            desc: s.description,
+            fields: fieldsFor(s),
+            priceText: s.price_text
+          });
+        }
+      });
+    });
+  }
+
+  searchInput.addEventListener('input', render);
+  window.addEventListener('langchange', function () { renderTagFilters(); render(); });
+
   fetch(API_BASE + '/api/services')
     .then(function (res) { return res.json(); })
     .then(function (services) {
-      if (!services.length) {
-        wrap.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">ยังไม่มีบริการในขณะนี้</p>';
-        return;
-      }
-      var html = '';
-      TYPE_ORDER.forEach(function (type) {
-        var items = services.filter(function (s) { return s.service_type === type; });
-        if (!items.length) return;
-        html += '<div class="service-type-head"><h4>' + TYPE_LABELS[type] + '</h4></div>';
-        html += '<div class="product-grid">' + items.map(renderServiceCard).join('') + '</div>';
-      });
-      wrap.innerHTML = html;
-      startCardCarousels(wrap);
-      wrap.querySelectorAll('.product-card').forEach(function (card) {
-        card.addEventListener('click', function () {
-          var s = services.find(function (x) { return String(x.id) === card.getAttribute('data-id'); });
-          if (s) {
-            Modal.open({
-              title: s.name,
-              tag: TYPE_LABELS[s.service_type],
-              images: s.images,
-              desc: s.description,
-              fields: fieldsFor(s),
-              priceText: s.price_text
-            });
-          }
-        });
-      });
+      allServices = services;
+      renderTagFilters();
+      render();
     })
     .catch(function () {
       wrap.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_services') : '') + '</p>';
