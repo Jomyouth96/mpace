@@ -269,6 +269,17 @@ def init_db():
             db.execute("ALTER TABLE attractions ADD COLUMN lng REAL")
             db.commit()
 
+        # Add optional English/Chinese translation columns to stories if
+        # reusing an older database that predates this feature. A story with
+        # these left blank simply won't appear when EN/ZH is selected.
+        existing_story_cols = {row[1] for row in db.execute("PRAGMA table_info(stories)").fetchall()}
+        if "title_en" not in existing_story_cols:
+            db.execute("ALTER TABLE stories ADD COLUMN title_en TEXT")
+            db.execute("ALTER TABLE stories ADD COLUMN excerpt_en TEXT")
+            db.execute("ALTER TABLE stories ADD COLUMN title_zh TEXT")
+            db.execute("ALTER TABLE stories ADD COLUMN excerpt_zh TEXT")
+            db.commit()
+
         # Migrate calendar_months from the old one-tradition/one-activity
         # schema to the new traditions[]/activities[] lists, if an older
         # database is being reused. Preserves every other table untouched.
@@ -577,6 +588,10 @@ def create_story():
     payload = request.get_json(silent=True) or {}
     title = (payload.get("title") or "").strip()
     excerpt = (payload.get("excerpt") or "").strip()
+    title_en = (payload.get("title_en") or "").strip() or None
+    excerpt_en = (payload.get("excerpt_en") or "").strip() or None
+    title_zh = (payload.get("title_zh") or "").strip() or None
+    excerpt_zh = (payload.get("excerpt_zh") or "").strip() or None
     images = _images_to_db(payload.get("images"))
     published_at = (payload.get("published_at") or "").strip() or datetime.now(timezone.utc).date().isoformat()
 
@@ -585,8 +600,10 @@ def create_story():
 
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO stories (title, excerpt, images, published_at, created_at) VALUES (?, ?, ?, ?, ?)",
-        (title, excerpt, images, published_at, datetime.now(timezone.utc).isoformat()),
+        "INSERT INTO stories (title, excerpt, title_en, excerpt_en, title_zh, excerpt_zh, images, "
+        "published_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (title, excerpt, title_en, excerpt_en, title_zh, excerpt_zh, images, published_at,
+         datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
     return jsonify({"success": True, "id": cursor.lastrowid}), 201
@@ -598,6 +615,10 @@ def update_story(story_id):
     payload = request.get_json(silent=True) or {}
     title = (payload.get("title") or "").strip()
     excerpt = (payload.get("excerpt") or "").strip()
+    title_en = (payload.get("title_en") or "").strip() or None
+    excerpt_en = (payload.get("excerpt_en") or "").strip() or None
+    title_zh = (payload.get("title_zh") or "").strip() or None
+    excerpt_zh = (payload.get("excerpt_zh") or "").strip() or None
     images = _images_to_db(payload.get("images"))
     published_at = (payload.get("published_at") or "").strip()
 
@@ -606,8 +627,9 @@ def update_story(story_id):
 
     db = get_db()
     result = db.execute(
-        "UPDATE stories SET title = ?, excerpt = ?, images = ?, published_at = ? WHERE id = ?",
-        (title, excerpt, images, published_at, story_id),
+        "UPDATE stories SET title = ?, excerpt = ?, title_en = ?, excerpt_en = ?, title_zh = ?, "
+        "excerpt_zh = ?, images = ?, published_at = ? WHERE id = ?",
+        (title, excerpt, title_en, excerpt_en, title_zh, excerpt_zh, images, published_at, story_id),
     )
     db.commit()
     if result.rowcount == 0:

@@ -261,6 +261,8 @@
       <div class="card admin-form">
         <h3 id="story-form-title">เพิ่มบทความใหม่</h3>
         <input type="hidden" id="story-id">
+        <p style="font-size:12.5px; color:var(--text-muted); margin:0;">แต่ละภาษาแยกจากกันอิสระ — ถ้าไม่กรอกภาษาไหน บทความนี้จะไม่แสดงตอนผู้ชมเลือกภาษานั้น (ยกเว้นภาษาไทยที่บังคับกรอก)</p>
+        <h4 style="font-size:14px; color:var(--green-800); margin:8px 0 0;">🇹🇭 ภาษาไทย (บังคับ)</h4>
         <div class="form-field">
           <label for="story-title">ชื่อบทความ</label>
           <input id="story-title" type="text" placeholder="เช่น ตำนานพระพุทธรูปวัดบ้านกาด">
@@ -268,6 +270,24 @@
         <div class="form-field">
           <label for="story-excerpt">เนื้อหา/สรุปย่อ</label>
           <textarea id="story-excerpt" rows="5" placeholder="เนื้อหาบทความ..."></textarea>
+        </div>
+        <h4 style="font-size:14px; color:var(--green-800); margin:8px 0 0;">🇬🇧 English (ไม่บังคับ)</h4>
+        <div class="form-field">
+          <label for="story-title-en">Title</label>
+          <input id="story-title-en" type="text" placeholder="e.g. The Legend of Wat Ban Kad">
+        </div>
+        <div class="form-field">
+          <label for="story-excerpt-en">Content</label>
+          <textarea id="story-excerpt-en" rows="5" placeholder="Story content in English..."></textarea>
+        </div>
+        <h4 style="font-size:14px; color:var(--green-800); margin:8px 0 0;">🇨🇳 中文 (ไม่บังคับ)</h4>
+        <div class="form-field">
+          <label for="story-title-zh">标题</label>
+          <input id="story-title-zh" type="text" placeholder="例如：班嘎寺佛像的传说">
+        </div>
+        <div class="form-field">
+          <label for="story-excerpt-zh">内容</label>
+          <textarea id="story-excerpt-zh" rows="5" placeholder="中文故事内容..."></textarea>
         </div>
         <div class="form-field">
           <label for="story-date">วันที่เผยแพร่</label>

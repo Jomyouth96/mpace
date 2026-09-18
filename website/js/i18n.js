@@ -50,10 +50,10 @@
       loading_generic: 'กำลังโหลด...',
       calendar_title: 'ปฏิทินวิถีชีวิตและผลผลิต 12 เดือน',
       calendar_desc: 'เลือกเดือนที่สนใจ เพื่อดูประเพณี สินค้าเกษตรประจำฤดู และกิจกรรมแนะนำของเดือนนั้น',
-      cal_tradition_prefix: 'ประเพณีประจำเดือน',
+      cal_tradition_prefix: 'ประเพณีประจำเดือน{month}',
       cal_activity_tag: 'กิจกรรมแนะนำ',
       cal_products_tag: 'สินค้าเกษตรประจำเดือน',
-      cal_updating_prefix: 'กำลังอัปเดตข้อมูลประเพณี สินค้าเกษตร และกิจกรรมของเดือน',
+      cal_updating_prefix: 'กำลังอัปเดตข้อมูลประเพณี สินค้าเกษตร และกิจกรรมของเดือน{month}',
       err_load_calendar: 'ไม่สามารถโหลดปฏิทินได้ในขณะนี้',
       brand_by: 'แบรนด์สินค้าและบริการโดย รักษ์พนา',
       shop_title: 'สินค้าและบริการในชุมชน',
@@ -111,6 +111,7 @@
       err_no_nearby: 'ยังไม่มีข้อมูล',
       err_load_nearby: 'ไม่สามารถโหลดข้อมูลได้ในขณะนี้',
       err_load_stories: 'ไม่สามารถโหลดเรื่องราวได้ในขณะนี้',
+      no_stories_lang: 'ยังไม่มีเรื่องราวในภาษานี้ ลองเปลี่ยนเป็นภาษาไทยดูก่อนได้',
       err_load_products: 'ไม่สามารถโหลดสินค้าได้ในขณะนี้',
       err_load_services: 'ไม่สามารถโหลดบริการได้ในขณะนี้'
     },
@@ -159,10 +160,10 @@
       loading_generic: 'Loading...',
       calendar_title: '12-Month Lifestyle & Produce Calendar',
       calendar_desc: 'Select a month to see its traditions, seasonal farm products, and recommended activities',
-      cal_tradition_prefix: 'Traditions of ',
+      cal_tradition_prefix: 'Traditions of {month}',
       cal_activity_tag: 'Recommended Activity',
       cal_products_tag: 'Seasonal Farm Products',
-      cal_updating_prefix: 'Updating traditions, farm products, and activities for ',
+      cal_updating_prefix: 'Updating traditions, farm products, and activities for {month}',
       err_load_calendar: 'Unable to load the calendar right now',
       brand_by: 'Goods & services brand by Rak Phana',
       shop_title: 'Community Goods & Services',
@@ -220,6 +221,7 @@
       err_no_nearby: 'No data available yet',
       err_load_nearby: 'Unable to load data right now',
       err_load_stories: 'Unable to load stories right now',
+      no_stories_lang: 'No stories available in this language yet — try switching to Thai',
       err_load_products: 'Unable to load products right now',
       err_load_services: 'Unable to load services right now'
     },
@@ -268,10 +270,10 @@
       loading_generic: '正在加载...',
       calendar_title: '十二月生活与农产日历',
       calendar_desc: '选择您感兴趣的月份，查看当月的传统节日、时令农产品与推荐活动',
-      cal_tradition_prefix: '',
+      cal_tradition_prefix: '{month}传统习俗',
       cal_activity_tag: '推荐活动',
       cal_products_tag: '本月农产品',
-      cal_updating_prefix: '正在更新',
+      cal_updating_prefix: '正在更新{month}的传统节日、农产品与活动资讯',
       err_load_calendar: '目前无法加载日历',
       brand_by: '产品与服务品牌：Rak Phana',
       shop_title: '社区产品与服务',
@@ -329,10 +331,22 @@
       err_no_nearby: '暂无资料',
       err_load_nearby: '目前无法加载资料',
       err_load_stories: '目前无法加载故事',
+      no_stories_lang: '此语言暂无故事，可先切换至泰语查看',
       err_load_products: '目前无法加载产品',
       err_load_services: '目前无法加载服务'
     }
   };
+
+  var MONTH_NAMES = {
+    th: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'],
+    en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    zh: ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月']
+  };
+
+  function monthName(index) {
+    var arr = MONTH_NAMES[currentLang] || MONTH_NAMES.th;
+    return arr[index] != null ? arr[index] : '';
+  }
 
   var SUPPORTED = ['th', 'en', 'zh'];
   var STORAGE_KEY = 'site_lang';
@@ -385,6 +399,8 @@
 
   window.t = t;
   window.applyLanguage = applyLanguage;
+  window.getLang = function () { return currentLang; };
+  window.monthName = monthName;
 
   document.addEventListener('DOMContentLoaded', function () {
     var switcher = document.getElementById('lang-switch');

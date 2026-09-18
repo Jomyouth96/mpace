@@ -789,6 +789,10 @@
   var storyIdField = document.getElementById('story-id');
   var storyTitle = document.getElementById('story-title');
   var storyExcerpt = document.getElementById('story-excerpt');
+  var storyTitleEn = document.getElementById('story-title-en');
+  var storyExcerptEn = document.getElementById('story-excerpt-en');
+  var storyTitleZh = document.getElementById('story-title-zh');
+  var storyExcerptZh = document.getElementById('story-excerpt-zh');
   var storyDate = document.getElementById('story-date');
   var storyImages = createImagePicker('story-images-picker');
   var storyFormTitle = document.getElementById('story-form-title');
@@ -802,6 +806,10 @@
     storyIdField.value = '';
     storyTitle.value = '';
     storyExcerpt.value = '';
+    storyTitleEn.value = '';
+    storyExcerptEn.value = '';
+    storyTitleZh.value = '';
+    storyExcerptZh.value = '';
     storyDate.value = '';
     storyImages.setImages([]);
     storyFormTitle.textContent = 'เพิ่มบทความใหม่';
@@ -829,7 +837,8 @@
           '<div class="admin-item-body">' +
             '<h5>' + escapeHtml(story.title) + '</h5>' +
             '<p>' + escapeHtml(story.excerpt) + '</p>' +
-            '<div class="admin-item-meta">เผยแพร่: ' + escapeHtml(story.published_at) + '</div>' +
+            '<div class="admin-item-meta">เผยแพร่: ' + escapeHtml(story.published_at) +
+              ' · ภาษา: ไทย' + (story.title_en && story.excerpt_en ? ', EN' : '') + (story.title_zh && story.excerpt_zh ? ', 中文' : '') + '</div>' +
           '</div>' +
           '<div class="admin-item-actions">' +
             '<button class="edit-btn">แก้ไข</button>' +
@@ -839,6 +848,10 @@
           storyIdField.value = story.id;
           storyTitle.value = story.title;
           storyExcerpt.value = story.excerpt;
+          storyTitleEn.value = story.title_en || '';
+          storyExcerptEn.value = story.excerpt_en || '';
+          storyTitleZh.value = story.title_zh || '';
+          storyExcerptZh.value = story.excerpt_zh || '';
           storyDate.value = story.published_at;
           storyImages.setImages(story.images || []);
           storyFormTitle.textContent = 'แก้ไขบทความ';
@@ -866,7 +879,12 @@
     storySaveBtn.disabled = true;
     storyImages.uploadAndGetImages().then(function (images) {
       var id = storyIdField.value;
-      var payload = { title: title, excerpt: excerpt, published_at: publishedAt, images: images };
+      var payload = {
+        title: title, excerpt: excerpt,
+        title_en: storyTitleEn.value.trim(), excerpt_en: storyExcerptEn.value.trim(),
+        title_zh: storyTitleZh.value.trim(), excerpt_zh: storyExcerptZh.value.trim(),
+        published_at: publishedAt, images: images
+      };
       return id
         ? api('/api/stories/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         : api('/api/stories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });

@@ -366,7 +366,8 @@ var Modal = (function () {
 
       if (traditions.length) {
         traditionBlock.style.display = 'flex';
-        traditionTag.textContent = (window.t ? window.t('cal_tradition_prefix') : '') + m.label;
+        var monthLabel = window.monthName ? window.monthName(m.month_index) : m.label;
+        traditionTag.textContent = window.t ? window.t('cal_tradition_prefix').replace('{month}', monthLabel) : monthLabel;
         traditionItemsEl.innerHTML = traditions.map(function (t) {
           return '<div><h4>' + escapeHtml(t.title) + '</h4><p>' + escapeHtml(t.desc) + '</p></div>';
         }).join('');
@@ -399,7 +400,8 @@ var Modal = (function () {
     } else {
       hasDataPanel.style.display = 'none';
       noDataPanel.style.display = 'flex';
-      emptyText.textContent = (window.t ? window.t('cal_updating_prefix') : '') + m.label;
+      var monthLabelEmpty = window.monthName ? window.monthName(m.month_index) : m.label;
+      emptyText.textContent = window.t ? window.t('cal_updating_prefix').replace('{month}', monthLabelEmpty) : monthLabelEmpty;
     }
   }
 
@@ -411,7 +413,7 @@ var Modal = (function () {
       months.forEach(function (m, i) {
         var btn = document.createElement('button');
         btn.className = 'pill-btn' + (i === 0 ? ' active' : '');
-        btn.textContent = m.label;
+        btn.textContent = window.monthName ? window.monthName(i) : m.label;
         btn.setAttribute('data-month', i);
         btn.addEventListener('click', function () { select(i); });
         monthButtonsEl.appendChild(btn);
@@ -423,7 +425,11 @@ var Modal = (function () {
     });
 
   window.addEventListener('langchange', function () {
-    if (monthData.length) select(currentMonthIndex);
+    if (!monthData.length) return;
+    monthButtonsEl.querySelectorAll('.pill-btn').forEach(function (btn, i) {
+      btn.textContent = window.monthName ? window.monthName(i) : monthData[i].label;
+    });
+    select(currentMonthIndex);
   });
 })();
 
@@ -480,43 +486,74 @@ var Modal = (function () {
   });
 })();
 
-// ============ STORIES (dynamic) ============
+// ============ STORIES (dynamic, per-language content) ============
 (function () {
   var grid = document.getElementById('story-grid');
   if (!grid) return;
 
+  var allStories = [];
+
+  // Thai fields (title/excerpt) are required on every story, so Thai always
+  // shows everything. EN/ZH only show stories where that language's fields
+  // were filled in by the admin — otherwise the story simply doesn't appear.
+  function localize(s) {
+    var lang = window.getLang ? window.getLang() : 'th';
+    if (lang === 'en' && s.title_en && s.excerpt_en) {
+      return { title: s.title_en, excerpt: s.excerpt_en };
+    }
+    if (lang === 'zh' && s.title_zh && s.excerpt_zh) {
+      return { title: s.title_zh, excerpt: s.excerpt_zh };
+    }
+    if (lang === 'th') return { title: s.title, excerpt: s.excerpt };
+    return null;
+  }
+
+  function render() {
+    var visible = allStories
+      .map(function (s) { return { s: s, l: localize(s) }; })
+      .filter(function (x) { return x.l; });
+
+    if (!visible.length) {
+      grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' +
+        (window.t ? window.t(allStories.length ? 'no_stories_lang' : 'err_load_stories') : '') + '</p>';
+      return;
+    }
+
+    grid.innerHTML = visible.map(function (x) {
+      var cover = renderCoverHtml(
+        x.s.images, x.l.title,
+        '<div class="thumb"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8AA08F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg></div>'
+      );
+      return (
+        '<div class="card clickable story-card" data-id="' + x.s.id + '">' + cover +
+        '<div class="body">' +
+          '<span class="date">' + escapeHtml(x.s.published_at) + '</span>' +
+          '<h4>' + escapeHtml(x.l.title) + '</h4>' +
+          '<p>' + escapeHtml(x.l.excerpt) + '</p>' +
+        '</div></div>'
+      );
+    }).join('');
+    startCardCarousels(grid);
+    grid.querySelectorAll('.story-card').forEach(function (card) {
+      card.addEventListener('click', function () {
+        var s = allStories.find(function (x) { return String(x.id) === card.getAttribute('data-id'); });
+        var l = s && localize(s);
+        if (s && l) Modal.open({ title: l.title, tag: s.published_at, images: s.images, desc: l.excerpt });
+      });
+    });
+  }
+
   fetch(API_BASE + '/api/stories')
     .then(function (res) { return res.json(); })
     .then(function (stories) {
-      if (!stories.length) {
-        grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">ยังไม่มีเรื่องราวในขณะนี้ ติดตามเร็ว ๆ นี้</p>';
-        return;
-      }
-      grid.innerHTML = stories.map(function (s) {
-        var cover = renderCoverHtml(
-          s.images, s.title,
-          '<div class="thumb"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8AA08F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg></div>'
-        );
-        return (
-          '<div class="card clickable story-card" data-id="' + s.id + '">' + cover +
-          '<div class="body">' +
-            '<span class="date">' + escapeHtml(s.published_at) + '</span>' +
-            '<h4>' + escapeHtml(s.title) + '</h4>' +
-            '<p>' + escapeHtml(s.excerpt) + '</p>' +
-          '</div></div>'
-        );
-      }).join('');
-      startCardCarousels(grid);
-      grid.querySelectorAll('.story-card').forEach(function (card) {
-        card.addEventListener('click', function () {
-          var s = stories.find(function (x) { return String(x.id) === card.getAttribute('data-id'); });
-          if (s) Modal.open({ title: s.title, tag: s.published_at, images: s.images, desc: s.excerpt });
-        });
-      });
+      allStories = stories;
+      render();
     })
     .catch(function () {
       grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_stories') : '') + '</p>';
     });
+
+  window.addEventListener('langchange', render);
 })();
 
 // ============ PRODUCTS (dynamic) ============
