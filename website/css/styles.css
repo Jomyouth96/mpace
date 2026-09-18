@@ -235,6 +235,9 @@ img{ max-width:100%; }
 .footer-brand{ display:flex; align-items:center; gap:10px; }
 .footer-brand img{ width:30px; height:30px; object-fit:contain; }
 .footer-links{ display:flex; gap:22px; font-size:13px; flex-wrap:wrap; }
+.footer-social{ display:flex; align-items:center; gap:14px; }
+.footer-social a{ display:inline-flex; color:rgba(255,255,255,0.65); transition:color .15s ease; }
+.footer-social a:hover{ color:#fff; }
 
 /* Image carousel (card cover — auto-crossfade) */
 .card-carousel{ position:relative; width:100%; height:190px; overflow:hidden; background:var(--green-100); }
