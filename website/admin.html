@@ -50,6 +50,8 @@
     <button class="pill-btn" data-tab="highlights">สิ่งที่น่าสนใจ</button>
     <button class="pill-btn" data-tab="stories">เรื่องราว</button>
     <button class="pill-btn" data-tab="qa">คำถามจากผู้เยี่ยมชม</button>
+    <button class="pill-btn" data-tab="orders">คำสั่งซื้อ</button>
+    <button class="pill-btn" data-tab="bookings">การจอง</button>
   </div>
 
   <!-- ============ ATTRACTIONS TAB ============ -->
@@ -245,6 +247,10 @@
         <div class="form-field">
           <label for="product-price">ราคา (ใส่ข้อความ เช่น ฿120 / กก. หรือ สอบถามราคา)</label>
           <input id="product-price" type="text" placeholder="฿120 / กก.">
+        </div>
+        <div class="form-field">
+          <label for="product-price-amount">ราคาสำหรับใส่ตะกร้า (ตัวเลข, ไม่บังคับ — ถ้าเว้นว่างจะกดสั่งซื้อไม่ได้)</label>
+          <input id="product-price-amount" type="number" min="0" step="0.01" placeholder="เช่น 120">
         </div>
         <div class="form-field">
           <label for="product-tags">แท็ก (คั่นด้วยจุลภาค เช่น อินทรีย์, ของฝาก)</label>
@@ -451,6 +457,29 @@
   <section id="tab-qa" class="container admin-panel" style="display:none;">
     <input type="text" id="qa-search" class="admin-search" placeholder="ค้นหาจากชื่อ วันที่ หรือคำถาม...">
     <div id="qa-admin-list" class="admin-list"></div>
+  </section>
+
+  <!-- ============ ORDERS TAB ============ -->
+  <section id="tab-orders" class="container admin-panel" style="display:none;">
+    <div class="card admin-form" style="max-width:420px; margin-bottom:20px;">
+      <h3>ค่าจัดส่งมาตรฐาน (บาท)</h3>
+      <div class="form-field">
+        <label for="shipping-rate-input">ใช้กับทุกคำสั่งซื้อ</label>
+        <input id="shipping-rate-input" type="number" min="0" step="0.01" placeholder="เช่น 50">
+      </div>
+      <div class="admin-form-actions">
+        <button id="shipping-rate-save-btn" class="btn-primary">บันทึกค่าจัดส่ง</button>
+      </div>
+      <p id="shipping-rate-msg" class="admin-msg"></p>
+    </div>
+    <input type="text" id="orders-search" class="admin-search" placeholder="ค้นหาจากชื่อลูกค้าหรือวันที่...">
+    <div id="orders-list" class="admin-list"></div>
+  </section>
+
+  <!-- ============ BOOKINGS TAB ============ -->
+  <section id="tab-bookings" class="container admin-panel" style="display:none;">
+    <input type="text" id="bookings-search" class="admin-search" placeholder="ค้นหาจากชื่อลูกค้า บริการ หรือวันที่...">
+    <div id="bookings-list" class="admin-list"></div>
   </section>
 </div>
 

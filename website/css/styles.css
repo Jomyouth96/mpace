@@ -89,6 +89,21 @@ img{ max-width:100%; }
 .tag-chip{ display:inline-block; font-size:12px; padding:3px 10px; border-radius:999px; background:var(--green-100); color:var(--green-700); margin:2px 4px 0 0; }
 .season-images{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
 .season-images img{ width:84px; height:84px; object-fit:cover; border-radius:10px; }
+
+.btn-small{ background:var(--green-700); color:#FFFFFF; font-weight:600; border:none; padding:8px 16px; border-radius:999px; font-size:13px; cursor:pointer; }
+.btn-small:hover{ background:var(--green-800); }
+.btn-small:disabled{ background:var(--border); color:var(--text-muted); cursor:default; }
+
+.cart-fab{ position:fixed; right:24px; bottom:24px; z-index:90; background:var(--green-800); color:#FFFFFF; border:none; border-radius:999px; padding:14px 22px; font-size:15px; font-weight:700; box-shadow:0 10px 24px rgba(15,51,32,0.35); cursor:pointer; display:flex; align-items:center; gap:8px; }
+.cart-fab:hover{ background:var(--green-900); }
+.cart-count-badge{ background:var(--gold-500); color:var(--green-900); border-radius:999px; padding:2px 9px; font-size:13px; }
+
+.cart-item-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+.cart-item-row .qty-controls{ display:flex; align-items:center; gap:8px; }
+.cart-item-row .qty-controls button{ width:26px; height:26px; border-radius:999px; border:1px solid var(--border); background:#fff; font-size:15px; line-height:1; cursor:pointer; }
+.cart-totals{ margin-top:14px; padding-top:14px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:6px; font-size:14.5px; }
+.cart-totals .total-row{ font-weight:700; font-size:16px; color:var(--green-800); }
+.cart-empty-msg{ color:var(--text-muted); font-size:14px; padding:20px 0; text-align:center; }
 .no-results{ color:var(--text-muted); font-size:14px; }
 
 .getting-there-desc p{ margin:0 0 10px; }

@@ -176,6 +176,47 @@ def init_db():
         )
         db.execute(
             """
+            CREATE TABLE IF NOT EXISTS site_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_name TEXT NOT NULL,
+                customer_contact TEXT NOT NULL,
+                customer_address TEXT NOT NULL,
+                notes TEXT,
+                items TEXT NOT NULL DEFAULT '[]',
+                subtotal REAL NOT NULL DEFAULT 0,
+                shipping_cost REAL NOT NULL DEFAULT 0,
+                total REAL NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'new',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bookings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                service_id INTEGER,
+                service_name TEXT NOT NULL,
+                customer_name TEXT NOT NULL,
+                customer_contact TEXT NOT NULL,
+                preferred_date TEXT,
+                party_size TEXT,
+                notes TEXT,
+                status TEXT NOT NULL DEFAULT 'new',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
             CREATE TABLE IF NOT EXISTS stories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
@@ -301,6 +342,9 @@ def init_db():
         existing_product_cols = {row[1] for row in db.execute("PRAGMA table_info(products)").fetchall()}
         if "tags" not in existing_product_cols:
             db.execute("ALTER TABLE products ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+            db.commit()
+        if "price_amount" not in existing_product_cols:
+            db.execute("ALTER TABLE products ADD COLUMN price_amount REAL")
             db.commit()
         existing_service_cols = {row[1] for row in db.execute("PRAGMA table_info(services)").fetchall()}
         if "tags" not in existing_service_cols:
@@ -512,6 +556,12 @@ def init_db():
             )
             db.commit()
 
+        # Seed a default flat shipping rate once.
+        seeded = db.execute("SELECT COUNT(*) FROM site_settings WHERE key = 'shipping_flat_rate'").fetchone()[0]
+        if seeded == 0:
+            db.execute("INSERT INTO site_settings (key, value) VALUES ('shipping_flat_rate', '50')")
+            db.commit()
+
 
 @app.get("/api/health")
 def health():
@@ -596,6 +646,188 @@ def answer_question(question_id):
     db.commit()
     if result.rowcount == 0:
         return jsonify({"success": False, "error": "ไม่พบคำถามนี้"}), 404
+    return jsonify({"success": True})
+
+
+# ============ SITE SETTINGS (shipping rate) ============
+
+@app.get("/api/settings/shipping")
+def get_shipping_setting():
+    db = get_db()
+    row = db.execute("SELECT value FROM site_settings WHERE key = 'shipping_flat_rate'").fetchone()
+    rate = float(row["value"]) if row else 0.0
+    return jsonify({"shipping_flat_rate": rate})
+
+
+@app.put("/api/settings/shipping")
+@require_admin
+def update_shipping_setting():
+    payload = request.get_json(silent=True) or {}
+    try:
+        rate = float(payload.get("shipping_flat_rate"))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "กรุณากรอกค่าจัดส่งเป็นตัวเลข"}), 400
+
+    db = get_db()
+    db.execute(
+        "INSERT INTO site_settings (key, value) VALUES ('shipping_flat_rate', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (str(rate),),
+    )
+    db.commit()
+    return jsonify({"success": True})
+
+
+# ============ ORDERS (product cart checkout) ============
+
+@app.post("/api/orders")
+def create_order():
+    payload = request.get_json(silent=True) or {}
+    customer_name = (payload.get("customer_name") or "").strip()
+    customer_contact = (payload.get("customer_contact") or "").strip()
+    customer_address = (payload.get("customer_address") or "").strip()
+    notes = (payload.get("notes") or "").strip() or None
+    cart_items = payload.get("items")
+
+    if not customer_name or not customer_contact or not customer_address:
+        return jsonify({"success": False, "error": "กรุณากรอกชื่อ ช่องทางติดต่อ และที่อยู่จัดส่งให้ครบถ้วน"}), 400
+    if not isinstance(cart_items, list) or not cart_items:
+        return jsonify({"success": False, "error": "ไม่มีสินค้าในตะกร้า"}), 400
+
+    db = get_db()
+    resolved_items = []
+    subtotal = 0.0
+    for entry in cart_items:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            product_id = int(entry.get("product_id"))
+            qty = max(1, int(entry.get("qty") or 1))
+        except (TypeError, ValueError):
+            continue
+        row = db.execute(
+            "SELECT id, name, price_amount FROM products WHERE id = ? AND kind = 'product'", (product_id,)
+        ).fetchone()
+        if not row or row["price_amount"] is None:
+            continue
+        line_total = row["price_amount"] * qty
+        subtotal += line_total
+        resolved_items.append({
+            "product_id": row["id"], "name": row["name"], "price_amount": row["price_amount"],
+            "qty": qty, "line_total": line_total,
+        })
+
+    if not resolved_items:
+        return jsonify({"success": False, "error": "สินค้าที่เลือกไม่สามารถสั่งซื้อได้ (อาจไม่มีราคาแล้ว)"}), 400
+
+    shipping_row = db.execute("SELECT value FROM site_settings WHERE key = 'shipping_flat_rate'").fetchone()
+    shipping_cost = float(shipping_row["value"]) if shipping_row else 0.0
+    total = subtotal + shipping_cost
+
+    cursor = db.execute(
+        "INSERT INTO orders (customer_name, customer_contact, customer_address, notes, items, "
+        "subtotal, shipping_cost, total, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)",
+        (customer_name, customer_contact, customer_address, notes, json.dumps(resolved_items),
+         subtotal, shipping_cost, total, datetime.now(timezone.utc).isoformat()),
+    )
+    db.commit()
+    return jsonify({
+        "success": True, "id": cursor.lastrowid,
+        "subtotal": subtotal, "shipping_cost": shipping_cost, "total": total,
+    }), 201
+
+
+@app.get("/api/orders")
+@require_admin
+def list_orders():
+    db = get_db()
+    rows = db.execute("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        try:
+            d["items"] = json.loads(d.get("items") or "[]")
+        except (TypeError, ValueError):
+            d["items"] = []
+        result.append(d)
+    return jsonify(result)
+
+
+@app.patch("/api/orders/<int:order_id>")
+@require_admin
+def update_order_status(order_id):
+    payload = request.get_json(silent=True) or {}
+    status = (payload.get("status") or "").strip()
+    if status not in ("new", "confirmed", "shipped", "done"):
+        return jsonify({"success": False, "error": "สถานะไม่ถูกต้อง"}), 400
+
+    db = get_db()
+    result = db.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบคำสั่งซื้อนี้"}), 404
+    return jsonify({"success": True})
+
+
+# ============ BOOKINGS (service reservations) ============
+
+@app.post("/api/bookings")
+def create_booking():
+    payload = request.get_json(silent=True) or {}
+    service_id = payload.get("service_id")
+    customer_name = (payload.get("customer_name") or "").strip()
+    customer_contact = (payload.get("customer_contact") or "").strip()
+    preferred_date = (payload.get("preferred_date") or "").strip() or None
+    party_size = (payload.get("party_size") or "").strip() or None
+    notes = (payload.get("notes") or "").strip() or None
+
+    if not customer_name or not customer_contact:
+        return jsonify({"success": False, "error": "กรุณากรอกชื่อและช่องทางติดต่อกลับให้ครบถ้วน"}), 400
+
+    db = get_db()
+    service_name = (payload.get("service_name") or "").strip()
+    try:
+        service_id = int(service_id)
+        row = db.execute("SELECT name FROM services WHERE id = ?", (service_id,)).fetchone()
+        if row:
+            service_name = row["name"]
+    except (TypeError, ValueError):
+        service_id = None
+
+    if not service_name:
+        return jsonify({"success": False, "error": "ไม่พบบริการที่ต้องการจอง"}), 400
+
+    cursor = db.execute(
+        "INSERT INTO bookings (service_id, service_name, customer_name, customer_contact, preferred_date, "
+        "party_size, notes, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?)",
+        (service_id, service_name, customer_name, customer_contact, preferred_date, party_size, notes,
+         datetime.now(timezone.utc).isoformat()),
+    )
+    db.commit()
+    return jsonify({"success": True, "id": cursor.lastrowid}), 201
+
+
+@app.get("/api/bookings")
+@require_admin
+def list_bookings():
+    db = get_db()
+    rows = db.execute("SELECT * FROM bookings ORDER BY created_at DESC").fetchall()
+    return jsonify([dict(row) for row in rows])
+
+
+@app.patch("/api/bookings/<int:booking_id>")
+@require_admin
+def update_booking_status(booking_id):
+    payload = request.get_json(silent=True) or {}
+    status = (payload.get("status") or "").strip()
+    if status not in ("new", "confirmed", "done", "cancelled"):
+        return jsonify({"success": False, "error": "สถานะไม่ถูกต้อง"}), 400
+
+    db = get_db()
+    result = db.execute("UPDATE bookings SET status = ? WHERE id = ?", (status, booking_id))
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบการจองนี้"}), 404
     return jsonify({"success": True})
 
 
@@ -740,10 +972,16 @@ def list_products():
 
 
 def _parse_product_payload(payload):
+    price_amount = payload.get("price_amount")
+    try:
+        price_amount = float(price_amount) if price_amount not in (None, "") else None
+    except (TypeError, ValueError):
+        price_amount = None
     return {
         "name": (payload.get("name") or "").strip(),
         "description": (payload.get("description") or "").strip(),
         "price_text": (payload.get("price_text") or "").strip() or None,
+        "price_amount": price_amount,
         "images": _images_to_db(payload.get("images")),
         "tags": _images_to_db(payload.get("tags")),
         "sort_order": int(payload.get("sort_order") or 0),
@@ -763,10 +1001,10 @@ def create_product():
 
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO products (kind, name, description, price_text, images, tags, sort_order, "
+        "INSERT INTO products (kind, name, description, price_text, price_amount, images, tags, sort_order, "
         "name_en, description_en, name_zh, description_zh, created_at) "
-        "VALUES ('product', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (data["name"], data["description"], data["price_text"], data["images"], data["tags"],
+        "VALUES ('product', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (data["name"], data["description"], data["price_text"], data["price_amount"], data["images"], data["tags"],
          data["sort_order"], data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
          datetime.now(timezone.utc).isoformat()),
     )
@@ -783,9 +1021,10 @@ def update_product(product_id):
 
     db = get_db()
     result = db.execute(
-        "UPDATE products SET name = ?, description = ?, price_text = ?, images = ?, tags = ?, sort_order = ?, "
-        "name_en = ?, description_en = ?, name_zh = ?, description_zh = ? WHERE id = ? AND kind = 'product'",
-        (data["name"], data["description"], data["price_text"], data["images"], data["tags"],
+        "UPDATE products SET name = ?, description = ?, price_text = ?, price_amount = ?, images = ?, tags = ?, "
+        "sort_order = ?, name_en = ?, description_en = ?, name_zh = ?, description_zh = ? "
+        "WHERE id = ? AND kind = 'product'",
+        (data["name"], data["description"], data["price_text"], data["price_amount"], data["images"], data["tags"],
          data["sort_order"], data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
          product_id),
     )

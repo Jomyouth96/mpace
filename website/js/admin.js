@@ -158,6 +158,9 @@
     loadHighlights();
     loadStories();
     loadQuestions();
+    loadShippingRate();
+    loadOrders();
+    loadBookings();
   }
 
   function showLogin(message) {
@@ -223,7 +226,9 @@
     services: document.getElementById('tab-services'),
     highlights: document.getElementById('tab-highlights'),
     stories: document.getElementById('tab-stories'),
-    qa: document.getElementById('tab-qa')
+    qa: document.getElementById('tab-qa'),
+    orders: document.getElementById('tab-orders'),
+    bookings: document.getElementById('tab-bookings')
   };
   tabButtons.forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -763,6 +768,7 @@
   var productNameZh = document.getElementById('product-name-zh');
   var productDescriptionZh = document.getElementById('product-description-zh');
   var productPrice = document.getElementById('product-price');
+  var productPriceAmount = document.getElementById('product-price-amount');
   var productTags = document.getElementById('product-tags');
   var productImages = createImagePicker('product-images-picker');
   var productFormTitle = document.getElementById('product-form-title');
@@ -777,6 +783,7 @@
     productName.value = '';
     productDescription.value = '';
     productPrice.value = '';
+    productPriceAmount.value = '';
     productTags.value = '';
     productNameEn.value = '';
     productDescriptionEn.value = '';
@@ -818,7 +825,7 @@
           '<div class="admin-item-body">' +
             '<h5>' + escapeHtml(p.name) + '</h5>' +
             '<p>' + escapeHtml(p.description) + '</p>' +
-            '<div class="admin-item-meta">' + escapeHtml(p.price_text || '') + (p.images ? ' · ' + p.images.length + ' รูป' : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + ' · ภาษา: ไทย' + (p.name_en && p.description_en ? ', EN' : '') + (p.name_zh && p.description_zh ? ', 中文' : '') + '</div>' +
+            '<div class="admin-item-meta">' + escapeHtml(p.price_text || '') + (p.images ? ' · ' + p.images.length + ' รูป' : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + ' · ภาษา: ไทย' + (p.name_en && p.description_en ? ', EN' : '') + (p.name_zh && p.description_zh ? ', 中文' : '') + (p.price_amount != null ? ' · 🛒 ใส่ตะกร้าได้ (฿' + p.price_amount + ')' : ' · ยังกดสั่งซื้อไม่ได้') + '</div>' +
           '</div>' +
           '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
         item.querySelector('.edit-btn').addEventListener('click', function () {
@@ -826,6 +833,7 @@
           productName.value = p.name;
           productDescription.value = p.description;
           productPrice.value = p.price_text || '';
+          productPriceAmount.value = (p.price_amount != null) ? p.price_amount : '';
           productTags.value = tags.join(', ');
           productNameEn.value = p.name_en || '';
           productDescriptionEn.value = p.description_en || '';
@@ -864,7 +872,8 @@
       var id = productIdField.value;
       var tags = productTags.value.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
       var payload = {
-        name: name, description: description, price_text: productPrice.value.trim(), tags: tags, images: images,
+        name: name, description: description, price_text: productPrice.value.trim(),
+        price_amount: productPriceAmount.value.trim(), tags: tags, images: images,
         name_en: productNameEn.value.trim(), description_en: productDescriptionEn.value.trim(),
         name_zh: productNameZh.value.trim(), description_zh: productDescriptionZh.value.trim()
       };
@@ -1278,5 +1287,157 @@
         (x.question || '').toLowerCase().indexOf(q) !== -1 ||
         (x.created_at || '').indexOf(q) !== -1;
     }) : qaCache);
+  });
+
+  // ============ ORDERS ============
+  var ORDER_STATUS_LABELS = { new: 'ใหม่', confirmed: 'ยืนยันแล้ว', shipped: 'จัดส่งแล้ว', done: 'เสร็จสิ้น' };
+  var ordersList = document.getElementById('orders-list');
+  var ordersSearch = document.getElementById('orders-search');
+  var ordersCache = [];
+  var shippingRateInput = document.getElementById('shipping-rate-input');
+  var shippingRateSaveBtn = document.getElementById('shipping-rate-save-btn');
+  var shippingRateMsg = document.getElementById('shipping-rate-msg');
+
+  function loadShippingRate() {
+    fetch(API_BASE + '/api/settings/shipping').then(function (r) { return r.json(); }).then(function (data) {
+      shippingRateInput.value = data.shipping_flat_rate;
+    });
+  }
+
+  shippingRateSaveBtn.addEventListener('click', function () {
+    shippingRateSaveBtn.disabled = true;
+    api('/api/settings/shipping', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shipping_flat_rate: shippingRateInput.value })
+    }).then(function (result) {
+      shippingRateSaveBtn.disabled = false;
+      shippingRateMsg.textContent = (result.ok && result.data.success) ? 'บันทึกสำเร็จ' : ((result.data && result.data.error) || 'บันทึกไม่สำเร็จ');
+      shippingRateMsg.className = (result.ok && result.data.success) ? 'admin-msg success' : 'admin-msg error';
+    });
+  });
+
+  function loadOrders() {
+    api('/api/orders').then(function (result) {
+      if (!result.ok) return;
+      ordersCache = result.data;
+      renderOrdersList(ordersCache);
+    });
+  }
+
+  function renderOrdersList(orders) {
+    ordersList.innerHTML = '';
+    if (orders.length === 0) {
+      ordersList.innerHTML = '<div class="admin-empty">' +
+        (ordersCache.length === 0 ? 'ยังไม่มีคำสั่งซื้อเข้ามา' : 'ไม่พบคำสั่งซื้อที่ตรงกับการค้นหา') + '</div>';
+      return;
+    }
+    orders.forEach(function (o) {
+      var itemsHtml = (o.items || []).map(function (it) {
+        return escapeHtml(it.name) + ' × ' + it.qty + ' (฿' + it.line_total + ')';
+      }).join('<br>');
+      var item = document.createElement('div');
+      item.className = 'card admin-item';
+      item.style.flexDirection = 'column';
+      item.style.alignItems = 'stretch';
+      item.innerHTML =
+        '<div class="admin-item-body">' +
+          '<h5>' + escapeHtml(o.customer_name) + ' <span class="answered-badge">' + ORDER_STATUS_LABELS[o.status] + '</span></h5>' +
+          '<div class="admin-item-meta">ติดต่อ: ' + escapeHtml(o.customer_contact) + ' · ที่อยู่: ' + escapeHtml(o.customer_address) + ' · ' + escapeHtml((o.created_at || '').slice(0, 16).replace('T', ' ')) + '</div>' +
+          '<p style="margin-top:8px;">' + itemsHtml + '</p>' +
+          (o.notes ? '<p style="margin-top:4px; color:var(--text-muted);">หมายเหตุ: ' + escapeHtml(o.notes) + '</p>' : '') +
+          '<p style="margin-top:8px;"><strong>ยอดสินค้า: ฿' + o.subtotal + ' + ค่าส่ง ฿' + o.shipping_cost + ' = รวม ฿' + o.total + '</strong></p>' +
+        '</div>';
+      var actions = document.createElement('div');
+      actions.style.display = 'flex';
+      actions.style.gap = '8px';
+      actions.style.marginTop = '10px';
+      ['new', 'confirmed', 'shipped', 'done'].forEach(function (status) {
+        var btn = document.createElement('button');
+        btn.className = 'btn-outline';
+        btn.style.fontSize = '12.5px';
+        btn.style.padding = '6px 12px';
+        btn.textContent = ORDER_STATUS_LABELS[status];
+        if (status === o.status) btn.disabled = true;
+        btn.addEventListener('click', function () {
+          api('/api/orders/' + o.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: status }) })
+            .then(function () { loadOrders(); });
+        });
+        actions.appendChild(btn);
+      });
+      item.appendChild(actions);
+      ordersList.appendChild(item);
+    });
+  }
+
+  ordersSearch.addEventListener('input', function () {
+    var q = ordersSearch.value.trim().toLowerCase();
+    renderOrdersList(q ? ordersCache.filter(function (o) {
+      return o.customer_name.toLowerCase().indexOf(q) !== -1 || (o.created_at || '').indexOf(q) !== -1;
+    }) : ordersCache);
+  });
+
+  // ============ BOOKINGS ============
+  var BOOKING_STATUS_LABELS = { new: 'ใหม่', confirmed: 'ยืนยันแล้ว', done: 'เสร็จสิ้น', cancelled: 'ยกเลิก' };
+  var bookingsList = document.getElementById('bookings-list');
+  var bookingsSearch = document.getElementById('bookings-search');
+  var bookingsCache = [];
+
+  function loadBookings() {
+    api('/api/bookings').then(function (result) {
+      if (!result.ok) return;
+      bookingsCache = result.data;
+      renderBookingsList(bookingsCache);
+    });
+  }
+
+  function renderBookingsList(bookings) {
+    bookingsList.innerHTML = '';
+    if (bookings.length === 0) {
+      bookingsList.innerHTML = '<div class="admin-empty">' +
+        (bookingsCache.length === 0 ? 'ยังไม่มีการจองเข้ามา' : 'ไม่พบการจองที่ตรงกับการค้นหา') + '</div>';
+      return;
+    }
+    bookings.forEach(function (b) {
+      var item = document.createElement('div');
+      item.className = 'card admin-item';
+      item.style.flexDirection = 'column';
+      item.style.alignItems = 'stretch';
+      item.innerHTML =
+        '<div class="admin-item-body">' +
+          '<h5>' + escapeHtml(b.customer_name) + ' <span class="answered-badge">' + BOOKING_STATUS_LABELS[b.status] + '</span></h5>' +
+          '<div class="admin-item-meta">บริการ: ' + escapeHtml(b.service_name) + ' · ติดต่อ: ' + escapeHtml(b.customer_contact) + ' · ' + escapeHtml((b.created_at || '').slice(0, 16).replace('T', ' ')) + '</div>' +
+          (b.preferred_date ? '<p style="margin-top:8px;">วันที่ต้องการ: ' + escapeHtml(b.preferred_date) + '</p>' : '') +
+          (b.party_size ? '<p style="margin-top:4px;">จำนวนคน: ' + escapeHtml(b.party_size) + '</p>' : '') +
+          (b.notes ? '<p style="margin-top:4px; color:var(--text-muted);">หมายเหตุ: ' + escapeHtml(b.notes) + '</p>' : '') +
+        '</div>';
+      var actions = document.createElement('div');
+      actions.style.display = 'flex';
+      actions.style.gap = '8px';
+      actions.style.marginTop = '10px';
+      ['new', 'confirmed', 'done', 'cancelled'].forEach(function (status) {
+        var btn = document.createElement('button');
+        btn.className = 'btn-outline';
+        btn.style.fontSize = '12.5px';
+        btn.style.padding = '6px 12px';
+        btn.textContent = BOOKING_STATUS_LABELS[status];
+        if (status === b.status) btn.disabled = true;
+        btn.addEventListener('click', function () {
+          api('/api/bookings/' + b.id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: status }) })
+            .then(function () { loadBookings(); });
+        });
+        actions.appendChild(btn);
+      });
+      item.appendChild(actions);
+      bookingsList.appendChild(item);
+    });
+  }
+
+  bookingsSearch.addEventListener('input', function () {
+    var q = bookingsSearch.value.trim().toLowerCase();
+    renderBookingsList(q ? bookingsCache.filter(function (b) {
+      return b.customer_name.toLowerCase().indexOf(q) !== -1 ||
+        b.service_name.toLowerCase().indexOf(q) !== -1 ||
+        (b.created_at || '').indexOf(q) !== -1;
+    }) : bookingsCache);
   });
 })();

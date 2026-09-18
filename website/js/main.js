@@ -669,6 +669,9 @@ var Modal = (function () {
       ? '<div>' + p.tags.map(function (t) { return '<span class="tag-chip">' + escapeHtml(t) + '</span>'; }).join('') + '</div>'
       : '';
     var desc = l.description.length > 90 ? l.description.slice(0, 90) + '…' : l.description;
+    var cartBtnHtml = (p.price_amount != null)
+      ? '<button type="button" class="btn-small add-to-cart-btn" style="margin-top:8px; width:fit-content;">' + (window.t ? window.t('add_to_cart_btn') : '') + '</button>'
+      : '';
     return (
       '<div class="card clickable product-card" data-id="' + p.id + '">' + cover +
       '<div class="body">' +
@@ -676,6 +679,7 @@ var Modal = (function () {
         '<p>' + escapeHtml(desc) + '</p>' +
         tagsHtml +
         priceHtml +
+        cartBtnHtml +
       '</div></div>'
     );
   }
@@ -717,6 +721,14 @@ var Modal = (function () {
         var x = visible.find(function (x) { return String(x.p.id) === card.getAttribute('data-id'); });
         if (x) Modal.open({ title: x.l.name, images: x.p.images, desc: x.l.description, priceText: x.p.price_text });
       });
+      var cartBtn = card.querySelector('.add-to-cart-btn');
+      if (cartBtn) {
+        cartBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var x = visible.find(function (x) { return String(x.p.id) === card.getAttribute('data-id'); });
+          if (x && window.Cart) window.Cart.add(x.p);
+        });
+      }
     });
   }
 
@@ -789,6 +801,9 @@ var Modal = (function () {
       ? '<div>' + s.tags.map(function (t) { return '<span class="tag-chip">' + escapeHtml(t) + '</span>'; }).join('') + '</div>'
       : '';
     var desc = l.description.length > 90 ? l.description.slice(0, 90) + '…' : l.description;
+    var bookBtnHtml = (s.service_type !== 'guide')
+      ? '<button type="button" class="btn-small book-service-btn" style="margin-top:8px; width:fit-content;">' + (window.t ? window.t('book_now_btn') : '') + '</button>'
+      : '';
     return (
       '<div class="card clickable product-card" data-id="' + s.id + '">' + cover +
       '<div class="body">' +
@@ -796,6 +811,7 @@ var Modal = (function () {
         '<p>' + escapeHtml(desc) + '</p>' +
         tagsHtml +
         priceHtml +
+        bookBtnHtml +
       '</div></div>'
     );
   }
@@ -857,6 +873,14 @@ var Modal = (function () {
           });
         }
       });
+      var bookBtn = card.querySelector('.book-service-btn');
+      if (bookBtn) {
+        bookBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var x = visible.find(function (x) { return String(x.s.id) === card.getAttribute('data-id'); });
+          if (x && window.openBooking) window.openBooking(x.s.id, x.l.name);
+        });
+      }
     });
   }
 
@@ -873,4 +897,217 @@ var Modal = (function () {
     .catch(function () {
       wrap.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_services') : '') + '</p>';
     });
+})();
+
+// ============ CART (products checkout, guarded — only present on shop.html) ============
+var Cart = (function () {
+  var fab = document.getElementById('cart-fab');
+  if (!fab) return { add: function () {} };
+
+  var STORAGE_KEY = 'cart_items';
+  var overlay = document.getElementById('cart-overlay');
+  var closeBtn = document.getElementById('cart-close');
+  var countEl = document.getElementById('cart-count');
+  var itemsEl = document.getElementById('cart-items');
+  var totalsEl = document.getElementById('cart-totals');
+  var subtotalRow = document.getElementById('cart-subtotal-row');
+  var shippingRow = document.getElementById('cart-shipping-row');
+  var totalRow = document.getElementById('cart-total-row');
+  var form = document.getElementById('checkout-form');
+  var successMsg = document.getElementById('checkout-success');
+  var shippingRate = 0;
+
+  function readCart() {
+    try {
+      var raw = window.localStorage.getItem(STORAGE_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function writeCart(items) {
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); } catch (e) { /* ignore */ }
+  }
+
+  function updateFab() {
+    var items = readCart();
+    var count = items.reduce(function (sum, it) { return sum + it.qty; }, 0);
+    countEl.textContent = count;
+    fab.style.display = count > 0 ? 'flex' : 'none';
+  }
+
+  function renderCart() {
+    var items = readCart();
+    if (!items.length) {
+      itemsEl.innerHTML = '<p class="cart-empty-msg">' + (window.t ? window.t('cart_empty') : '') + '</p>';
+      totalsEl.style.display = 'none';
+      return;
+    }
+    itemsEl.innerHTML = items.map(function (it, i) {
+      return (
+        '<div class="cart-item-row" data-index="' + i + '">' +
+          '<div><strong>' + escapeHtml(it.name) + '</strong><br><span style="color:var(--text-muted); font-size:13px;">฿' + it.price_amount + ' × ' + it.qty + '</span></div>' +
+          '<div class="qty-controls">' +
+            '<button type="button" class="qty-minus">−</button>' +
+            '<span>' + it.qty + '</span>' +
+            '<button type="button" class="qty-plus">+</button>' +
+            '<button type="button" class="qty-remove" style="margin-left:8px; color:#B23A3A; border:none; background:none; font-size:13px; cursor:pointer;">✕</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+
+    var subtotal = items.reduce(function (sum, it) { return sum + it.price_amount * it.qty; }, 0);
+    var total = subtotal + shippingRate;
+    totalsEl.style.display = 'flex';
+    subtotalRow.textContent = (window.t ? window.t('cart_subtotal_label') : '') + ': ฿' + subtotal.toFixed(2);
+    shippingRow.textContent = (window.t ? window.t('cart_shipping_label') : '') + ': ฿' + shippingRate.toFixed(2);
+    totalRow.textContent = (window.t ? window.t('cart_total_label') : '') + ': ฿' + total.toFixed(2);
+
+    itemsEl.querySelectorAll('.cart-item-row').forEach(function (row) {
+      var i = parseInt(row.getAttribute('data-index'), 10);
+      row.querySelector('.qty-plus').addEventListener('click', function () {
+        items[i].qty += 1; writeCart(items); renderCart(); updateFab();
+      });
+      row.querySelector('.qty-minus').addEventListener('click', function () {
+        items[i].qty = Math.max(1, items[i].qty - 1); writeCart(items); renderCart(); updateFab();
+      });
+      row.querySelector('.qty-remove').addEventListener('click', function () {
+        items.splice(i, 1); writeCart(items); renderCart(); updateFab();
+      });
+    });
+  }
+
+  function add(product) {
+    var items = readCart();
+    var existing = items.find(function (it) { return it.product_id === product.id; });
+    if (existing) {
+      existing.qty += 1;
+    } else {
+      items.push({ product_id: product.id, name: product.name, price_amount: product.price_amount, qty: 1 });
+    }
+    writeCart(items);
+    updateFab();
+  }
+
+  fab.addEventListener('click', function () {
+    renderCart();
+    overlay.classList.add('show');
+  });
+  closeBtn.addEventListener('click', function () { overlay.classList.remove('show'); });
+  overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.classList.remove('show'); });
+
+  fetch(API_BASE + '/api/settings/shipping')
+    .then(function (res) { return res.json(); })
+    .then(function (data) { shippingRate = data.shipping_flat_rate || 0; })
+    .catch(function () {});
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var items = readCart();
+    if (!items.length) return;
+    var submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    successMsg.classList.remove('show');
+    successMsg.style.color = '';
+
+    fetch(API_BASE + '/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_name: document.getElementById('checkout-name').value.trim(),
+        customer_contact: document.getElementById('checkout-contact').value.trim(),
+        customer_address: document.getElementById('checkout-address').value.trim(),
+        notes: document.getElementById('checkout-notes').value.trim(),
+        items: items.map(function (it) { return { product_id: it.product_id, qty: it.qty }; })
+      })
+    })
+      .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+      .then(function (result) {
+        if (result.ok && result.data.success) {
+          successMsg.textContent = window.t ? window.t('checkout_success') : '';
+          successMsg.classList.add('show');
+          writeCart([]);
+          updateFab();
+          form.reset();
+        } else {
+          successMsg.textContent = (result.data && result.data.error) || (window.t ? window.t('checkout_fail') : '');
+          successMsg.style.color = '#B23A3A';
+          successMsg.classList.add('show');
+        }
+      })
+      .catch(function () {
+        successMsg.textContent = window.t ? window.t('checkout_fail') : '';
+        successMsg.style.color = '#B23A3A';
+        successMsg.classList.add('show');
+      })
+      .finally(function () { submitBtn.disabled = false; });
+  });
+
+  updateFab();
+  return { add: add };
+})();
+
+// ============ SERVICE BOOKING (guarded — only present on shop.html) ============
+(function () {
+  var overlay = document.getElementById('booking-overlay');
+  if (!overlay) { window.openBooking = function () {}; return; }
+
+  var closeBtn = document.getElementById('booking-close');
+  var nameEl = document.getElementById('booking-service-name');
+  var form = document.getElementById('booking-form');
+  var successMsg = document.getElementById('booking-success');
+  var currentService = null;
+
+  window.openBooking = function (serviceId, serviceName) {
+    currentService = { id: serviceId, name: serviceName };
+    nameEl.textContent = serviceName;
+    successMsg.classList.remove('show');
+    form.reset();
+    overlay.classList.add('show');
+  };
+
+  closeBtn.addEventListener('click', function () { overlay.classList.remove('show'); });
+  overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.classList.remove('show'); });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!currentService) return;
+    var submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    successMsg.classList.remove('show');
+    successMsg.style.color = '';
+
+    fetch(API_BASE + '/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: currentService.id,
+        service_name: currentService.name,
+        customer_name: document.getElementById('booking-name').value.trim(),
+        customer_contact: document.getElementById('booking-contact').value.trim(),
+        preferred_date: document.getElementById('booking-date').value.trim(),
+        party_size: document.getElementById('booking-party').value.trim(),
+        notes: document.getElementById('booking-notes').value.trim()
+      })
+    })
+      .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+      .then(function (result) {
+        if (result.ok && result.data.success) {
+          successMsg.textContent = window.t ? window.t('booking_success') : '';
+          successMsg.classList.add('show');
+          form.reset();
+        } else {
+          successMsg.textContent = (result.data && result.data.error) || (window.t ? window.t('booking_fail') : '');
+          successMsg.style.color = '#B23A3A';
+          successMsg.classList.add('show');
+        }
+      })
+      .catch(function () {
+        successMsg.textContent = window.t ? window.t('booking_fail') : '';
+        successMsg.style.color = '#B23A3A';
+        successMsg.classList.add('show');
+      })
+      .finally(function () { submitBtn.disabled = false; });
+  });
 })();

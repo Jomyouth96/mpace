@@ -101,6 +101,80 @@
     </div>
   </div>
 </div>
+<!-- ============ CART ============ -->
+<button type="button" id="cart-fab" class="cart-fab" style="display:none;">
+  🛒 <span data-i18n="cart_label">ตะกร้า</span> <span class="cart-count-badge" id="cart-count">0</span>
+</button>
+<div class="modal-overlay" id="cart-overlay">
+  <div class="modal-box" style="max-width:520px;">
+    <button class="modal-close" id="cart-close" aria-label="ปิด">✕</button>
+    <div class="modal-body">
+      <h3 data-i18n="cart_title">ตะกร้าสินค้า</h3>
+      <div id="cart-items"></div>
+      <div id="cart-totals" class="cart-totals" style="display:none;">
+        <div id="cart-subtotal-row"></div>
+        <div id="cart-shipping-row"></div>
+        <div class="total-row" id="cart-total-row"></div>
+      </div>
+      <form id="checkout-form" style="display:flex; flex-direction:column; gap:14px; margin-top:18px;">
+        <div class="form-field">
+          <label for="checkout-name" data-i18n="checkout_name_label">ชื่อผู้สั่งซื้อ</label>
+          <input id="checkout-name" type="text" placeholder="ชื่อ-นามสกุล" data-i18n-placeholder="qa_name_placeholder" required>
+        </div>
+        <div class="form-field">
+          <label for="checkout-contact" data-i18n="qa_contact_label">ช่องทางติดต่อกลับ</label>
+          <input id="checkout-contact" type="text" placeholder="เบอร์โทรหรืออีเมล" data-i18n-placeholder="qa_contact_placeholder" required>
+        </div>
+        <div class="form-field">
+          <label for="checkout-address" data-i18n="checkout_address_label">ที่อยู่จัดส่ง</label>
+          <textarea id="checkout-address" rows="3" data-i18n-placeholder="checkout_address_placeholder" placeholder="ที่อยู่สำหรับจัดส่งสินค้า..." required></textarea>
+        </div>
+        <div class="form-field">
+          <label for="checkout-notes" data-i18n="checkout_notes_label">หมายเหตุ (ถ้ามี)</label>
+          <textarea id="checkout-notes" rows="2" data-i18n-placeholder="checkout_notes_placeholder" placeholder="หมายเหตุเพิ่มเติม..."></textarea>
+        </div>
+        <button class="btn-primary" type="submit" data-i18n="checkout_submit_btn">ยืนยันสั่งซื้อ</button>
+        <p class="qa-success" id="checkout-success" data-i18n="checkout_success">ขอบคุณสำหรับคำสั่งซื้อ ทีมงานจะติดต่อกลับเพื่อนัดชำระเงินและจัดส่ง</p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SERVICE BOOKING ============ -->
+<div class="modal-overlay" id="booking-overlay">
+  <div class="modal-box" style="max-width:480px;">
+    <button class="modal-close" id="booking-close" aria-label="ปิด">✕</button>
+    <div class="modal-body">
+      <h3 data-i18n="booking_title">จองบริการ</h3>
+      <p id="booking-service-name" style="font-weight:600; color:var(--green-700);"></p>
+      <form id="booking-form" style="display:flex; flex-direction:column; gap:14px; margin-top:10px;">
+        <div class="form-field">
+          <label for="booking-name" data-i18n="checkout_name_label">ชื่อผู้จอง</label>
+          <input id="booking-name" type="text" placeholder="ชื่อ-นามสกุล" data-i18n-placeholder="qa_name_placeholder" required>
+        </div>
+        <div class="form-field">
+          <label for="booking-contact" data-i18n="qa_contact_label">ช่องทางติดต่อกลับ</label>
+          <input id="booking-contact" type="text" placeholder="เบอร์โทรหรืออีเมล" data-i18n-placeholder="qa_contact_placeholder" required>
+        </div>
+        <div class="form-field">
+          <label for="booking-date" data-i18n="booking_date_label">วันที่ต้องการ</label>
+          <input id="booking-date" type="text" data-i18n-placeholder="booking_date_placeholder" placeholder="เช่น 12 ต.ค. 2569">
+        </div>
+        <div class="form-field">
+          <label for="booking-party" data-i18n="booking_party_label">จำนวนคน</label>
+          <input id="booking-party" type="text" data-i18n-placeholder="booking_party_placeholder" placeholder="เช่น 4 คน">
+        </div>
+        <div class="form-field">
+          <label for="booking-notes" data-i18n="checkout_notes_label">หมายเหตุ (ถ้ามี)</label>
+          <textarea id="booking-notes" rows="2" data-i18n-placeholder="checkout_notes_placeholder" placeholder="หมายเหตุเพิ่มเติม..."></textarea>
+        </div>
+        <button class="btn-primary" type="submit" data-i18n="booking_submit_btn">ส่งคำขอจอง</button>
+        <p class="qa-success" id="booking-success" data-i18n="booking_success">ขอบคุณสำหรับการจอง ทีมงานจะติดต่อกลับเพื่อยืนยันโดยเร็วที่สุด</p>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script src="js/i18n.js"></script>
 <script src="js/main.js"></script>
 </body>
