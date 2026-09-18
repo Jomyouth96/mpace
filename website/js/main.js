@@ -276,13 +276,14 @@ var Modal = (function () {
       }
       grid.innerHTML = items.map(function (p) {
         var cover = renderCoverHtml(p.images, p.name, '', 'nearby-cover');
+        var desc = p.description.length > 90 ? p.description.slice(0, 90) + '…' : p.description;
         return (
           '<div class="card clickable nearby-card" data-id="' + p.id + '" style="padding:0; overflow:hidden;">' +
             (p.images && p.images.length ? cover : '') +
             '<div style="padding:20px; display:flex; flex-direction:column; gap:6px;">' +
               '<span class="tag" style="width:fit-content;">' + escapeHtml(p.area_tag) + '</span>' +
               '<h4>' + escapeHtml(p.name) + '</h4>' +
-              '<p>' + escapeHtml(p.description) + '</p>' +
+              '<p>' + escapeHtml(desc) + '</p>' +
             '</div>' +
           '</div>'
         );
@@ -297,6 +298,44 @@ var Modal = (function () {
     })
     .catch(function () {
       grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_nearby') : '') + '</p>';
+    });
+})();
+
+// ============ HIGHLIGHTS ("สิ่งที่น่าสนใจ", dynamic) ============
+(function () {
+  var grid = document.getElementById('highlight-grid');
+  if (!grid) return;
+
+  fetch(API_BASE + '/api/highlights')
+    .then(function (res) { return res.json(); })
+    .then(function (items) {
+      if (!items.length) {
+        grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_no_highlights') : '') + '</p>';
+        return;
+      }
+      grid.innerHTML = items.map(function (p) {
+        var cover = renderCoverHtml(p.images, p.name, '', 'nearby-cover');
+        var desc = p.description.length > 90 ? p.description.slice(0, 90) + '…' : p.description;
+        return (
+          '<div class="card clickable highlight-card" data-id="' + p.id + '" style="padding:0; overflow:hidden;">' +
+            (p.images && p.images.length ? cover : '') +
+            '<div style="padding:20px; display:flex; flex-direction:column; gap:6px;">' +
+              '<h4>' + escapeHtml(p.name) + '</h4>' +
+              '<p>' + escapeHtml(desc) + '</p>' +
+            '</div>' +
+          '</div>'
+        );
+      }).join('');
+      startCardCarousels(grid);
+      grid.querySelectorAll('.highlight-card').forEach(function (card) {
+        card.addEventListener('click', function () {
+          var p = items.find(function (x) { return String(x.id) === card.getAttribute('data-id'); });
+          if (p) Modal.open({ title: p.name, images: p.images, desc: p.description });
+        });
+      });
+    })
+    .catch(function () {
+      grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_highlights') : '') + '</p>';
     });
 })();
 

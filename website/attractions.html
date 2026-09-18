@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>แหล่งท่องเที่ยว — วิสาหกิจชุมชนเกษตรเชิงท่องเที่ยวตำบลแม่หอพระ</title>
+<meta name="description" content="แหล่งท่องเที่ยวธรรมชาติและวัฒนธรรมในตำบลแม่หอพระ พร้อมแผนที่จริงและแหล่งท่องเที่ยวใกล้เคียง">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="index.html">
+      <img src="images/logo-seal.png" alt="ตราวิสาหกิจชุมชนเกษตรเชิงท่องเที่ยวตำบลแม่หอพระ">
+      <span class="brand-text">
+        <strong data-i18n="brand_title">วิสาหกิจชุมชนเกษตรเชิงท่องเที่ยว</strong>
+        <span data-i18n="brand_subtitle">ตำบลแม่หอพระ อ.แม่แตง จ.เชียงใหม่</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a class="navlink" href="index.html" data-i18n="nav_home">หน้าแรก</a>
+      <a class="navlink" href="about.html" data-i18n="nav_about">เกี่ยวกับเรา</a>
+      <a class="navlink navlink-active" href="attractions.html" data-i18n="nav_attractions">แหล่งท่องเที่ยว</a>
+      <a class="navlink" href="calendar.html" data-i18n="nav_calendar">ปฏิทินประสบการณ์</a>
+      <a class="navlink" href="shop.html" data-i18n="nav_shop">สินค้าและบริการในชุมชน</a>
+      <a class="navlink" href="stories.html" data-i18n="nav_stories">เรื่องราว</a>
+      <a class="navlink" href="contact.html" data-i18n="nav_contact">ติดต่อเรา</a>
+    </nav>
+    <div class="lang-switch" id="lang-switch">
+      <button type="button" data-lang="th" class="active">ไทย</button>
+      <button type="button" data-lang="en">EN</button>
+      <button type="button" data-lang="zh">中文</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============ ATTRACTIONS ============ -->
+<section id="attractions" class="section">
+  <div class="section-head">
+    <span class="section-kicker">EXPLORE</span>
+    <h2 data-i18n="attractions_title">แหล่งท่องเที่ยวแม่หอพระ</h2>
+    <p data-i18n="attractions_desc">รวมแหล่งท่องเที่ยวทุกที่ในพื้นที่ ทั้งธรรมชาติ วัด และตำนานท้องถิ่นที่รอให้คุณมาสัมผัส ในระยะไม่ไกลจากตัวชุมชน</p>
+  </div>
+
+  <div class="pill-row" id="attraction-filters">
+    <button class="pill-btn active" data-filter="all" data-i18n="filter_all">ทั้งหมด</button>
+    <button class="pill-btn" data-filter="nature" data-i18n="filter_nature">แหล่งท่องเที่ยวทางธรรมชาติ</button>
+    <button class="pill-btn" data-filter="culture" data-i18n="filter_culture">แหล่งท่องเที่ยวทางวัฒนธรรม</button>
+  </div>
+
+  <div id="attraction-grid" class="attraction-grid">
+    <p style="color:var(--text-muted); font-size:14px;" data-i18n="loading_attractions">กำลังโหลดแหล่งท่องเที่ยว...</p>
+  </div>
+
+  <div class="card season-card">
+    <div class="season-head">
+      <span class="section-kicker" style="color:#CFE3D3;">SEASONAL PICKS</span>
+      <h3 data-i18n="seasonal_title">แนะนำแหล่งท่องเที่ยวตามฤดูกาล</h3>
+    </div>
+    <div class="season-body">
+      <div class="pill-row" id="season-buttons" style="margin-bottom:0;">
+        <button class="season-btn active" data-season="0" data-i18n="season_summer">ฤดูร้อน (มี.ค.–มิ.ย.)</button>
+        <button class="season-btn" data-season="1" data-i18n="season_rainy">ฤดูฝน (ก.ค.–ต.ค.)</button>
+        <button class="season-btn" data-season="2" data-i18n="season_winter">ฤดูหนาว (พ.ย.–ก.พ.)</button>
+      </div>
+      <p id="season-desc"></p>
+      <div id="season-picks"></div>
+    </div>
+  </div>
+
+  <!-- แผนที่แหล่งท่องเที่ยว -->
+  <div class="section-head" style="margin-top:64px;">
+    <span class="section-kicker">MAP</span>
+    <h3 style="font-size:24px; color:var(--green-900);" data-i18n="map_title">แผนที่แหล่งท่องเที่ยวแม่หอพระ</h3>
+    <p style="font-size:14.5px;" data-i18n="map_desc">แผนที่จริงจากพิกัด GPS ของแต่ละสถานที่ — คลิกหมุดเพื่อดูข้อมูล และกด "ดูรายละเอียด" เพื่อดูข้อมูลเต็มของสถานที่นั้น</p>
+  </div>
+  <div class="map-wrap">
+    <div id="attraction-leaflet-map"></div>
+
+    <div class="map-legend">
+      <span class="legend-item"><span class="dot-mini" style="background:var(--gold-500);"></span><span data-i18n="legend_nature">ธรรมชาติ</span></span>
+      <span class="legend-item"><span class="dot-mini" style="background:var(--green-700);"></span><span data-i18n="legend_culture">วัฒนธรรม</span></span>
+    </div>
+  </div>
+
+  <!-- แหล่งท่องเที่ยวใกล้เคียง -->
+  <div class="section-head">
+    <span class="section-kicker">NEARBY</span>
+    <h3 style="font-size:24px; color:var(--green-900);" data-i18n="nearby_title">แหล่งท่องเที่ยวใกล้เคียง</h3>
+    <p style="font-size:14.5px;" data-i18n="nearby_desc">ต่อยอดทริปไปยังแหล่งท่องเที่ยวชื่อดังในอำเภอใกล้เคียง — แม่แตง สันทราย และพร้าว</p>
+  </div>
+  <div id="nearby-grid" class="nearby-grid">
+    <p style="color:var(--text-muted); font-size:14px;" data-i18n="loading_generic">กำลังโหลด...</p>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <img src="images/logo-seal.png" alt="ตราวิสาหกิจชุมชนเกษตรเชิงท่องเที่ยวตำบลแม่หอพระ">
+      <span style="font-size:13px;" data-i18n="footer_copyright">© วิสาหกิจชุมชนเกษตรเชิงท่องเที่ยวตำบลแม่หอพระ อำเภอแม่แตง จังหวัดเชียงใหม่</span>
+    </div>
+    <div class="footer-links">
+      <a href="about.html" data-i18n="nav_about">เกี่ยวกับเรา</a>
+      <a href="attractions.html" data-i18n="nav_attractions">แหล่งท่องเที่ยว</a>
+      <a href="shop.html" data-i18n="footer_shop">สินค้า/บริการ</a>
+      <a href="stories.html" data-i18n="nav_stories">เรื่องราว</a>
+      <a href="contact.html" data-i18n="nav_contact">ติดต่อ</a>
+    </div>
+  </div>
+</footer>
+
+<!-- ============ DETAIL MODAL (shared by attractions / products / services / stories / highlights) ============ -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="modal-close" aria-label="ปิด" data-i18n-aria-label="modal_close">✕</button>
+    <div class="modal-gallery" id="modal-gallery" style="display:none;"></div>
+    <div class="modal-body">
+      <span class="tag" id="modal-tag" style="width:fit-content; display:none;"></span>
+      <h3 id="modal-title"></h3>
+      <div class="modal-field-row" id="modal-fields"></div>
+      <p id="modal-desc"></p>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

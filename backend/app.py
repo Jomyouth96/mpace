@@ -253,6 +253,18 @@ def init_db():
         )
         db.execute(
             """
+            CREATE TABLE IF NOT EXISTS highlights (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                images TEXT NOT NULL DEFAULT '[]',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
             CREATE TABLE IF NOT EXISTS calendar_months (
                 month_index INTEGER PRIMARY KEY,
                 label TEXT NOT NULL,
@@ -1003,6 +1015,70 @@ def update_nearby_attraction(item_id):
 def delete_nearby_attraction(item_id):
     db = get_db()
     result = db.execute("DELETE FROM nearby_attractions WHERE id = ?", (item_id,))
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบรายการนี้"}), 404
+    return jsonify({"success": True})
+
+
+# ============ HIGHLIGHTS ("สิ่งที่น่าสนใจ") ============
+
+@app.get("/api/highlights")
+def list_highlights():
+    db = get_db()
+    rows = db.execute("SELECT * FROM highlights ORDER BY sort_order, id").fetchall()
+    return jsonify([_row_with_images(row) for row in rows])
+
+
+def _parse_highlight_payload(payload):
+    return {
+        "name": (payload.get("name") or "").strip(),
+        "description": (payload.get("description") or "").strip(),
+        "images": _images_to_db(payload.get("images")),
+        "sort_order": int(payload.get("sort_order") or 0),
+    }
+
+
+@app.post("/api/highlights")
+@require_admin
+def create_highlight():
+    data = _parse_highlight_payload(request.get_json(silent=True) or {})
+    if not data["name"] or not data["description"]:
+        return jsonify({"success": False, "error": "กรุณากรอกชื่อและรายละเอียดให้ครบถ้วน"}), 400
+
+    db = get_db()
+    cursor = db.execute(
+        "INSERT INTO highlights (name, description, images, sort_order, created_at) VALUES (?, ?, ?, ?, ?)",
+        (data["name"], data["description"], data["images"], data["sort_order"],
+         datetime.now(timezone.utc).isoformat()),
+    )
+    db.commit()
+    return jsonify({"success": True, "id": cursor.lastrowid}), 201
+
+
+@app.put("/api/highlights/<int:item_id>")
+@require_admin
+def update_highlight(item_id):
+    data = _parse_highlight_payload(request.get_json(silent=True) or {})
+    if not data["name"] or not data["description"]:
+        return jsonify({"success": False, "error": "กรุณากรอกชื่อและรายละเอียดให้ครบถ้วน"}), 400
+
+    db = get_db()
+    result = db.execute(
+        "UPDATE highlights SET name = ?, description = ?, images = ?, sort_order = ? WHERE id = ?",
+        (data["name"], data["description"], data["images"], data["sort_order"], item_id),
+    )
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบรายการนี้"}), 404
+    return jsonify({"success": True})
+
+
+@app.delete("/api/highlights/<int:item_id>")
+@require_admin
+def delete_highlight(item_id):
+    db = get_db()
+    result = db.execute("DELETE FROM highlights WHERE id = ?", (item_id,))
     db.commit()
     if result.rowcount == 0:
         return jsonify({"success": False, "error": "ไม่พบรายการนี้"}), 404

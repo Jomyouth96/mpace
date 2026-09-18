@@ -46,6 +46,7 @@
     <button class="pill-btn" data-tab="calendar">ปฏิทินประสบการณ์</button>
     <button class="pill-btn" data-tab="products">สินค้า</button>
     <button class="pill-btn" data-tab="services">บริการ</button>
+    <button class="pill-btn" data-tab="highlights">สิ่งที่น่าสนใจ</button>
     <button class="pill-btn" data-tab="stories">เรื่องราว</button>
     <button class="pill-btn" data-tab="qa">คำถามจากผู้เยี่ยมชม</button>
   </div>
@@ -328,6 +329,38 @@
       <div>
         <input type="text" id="service-search" class="admin-search" placeholder="ค้นหาจากชื่อหรือแท็ก...">
         <div id="service-list" class="admin-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HIGHLIGHTS TAB ("สิ่งที่น่าสนใจ") ============ -->
+  <section id="tab-highlights" class="container admin-panel" style="display:none;">
+    <div class="admin-grid">
+      <div class="card admin-form">
+        <h3 id="highlight-form-title">เพิ่ม "สิ่งที่น่าสนใจ" ใหม่</h3>
+        <input type="hidden" id="highlight-id">
+        <div class="form-field">
+          <label for="highlight-name">ชื่อ</label>
+          <input id="highlight-name" type="text" placeholder="เช่น จุดชมวิวทุ่งนายามเช้า">
+        </div>
+        <div class="form-field">
+          <label for="highlight-description">รายละเอียด</label>
+          <textarea id="highlight-description" rows="4" placeholder="รายละเอียด..."></textarea>
+        </div>
+        <div class="form-field">
+          <label>รูปภาพ (เพิ่มได้หลายรูป)</label>
+          <div id="highlight-images-picker"></div>
+        </div>
+        <div class="admin-form-actions">
+          <button id="highlight-save-btn" class="btn-primary">บันทึก</button>
+          <button id="highlight-cancel-btn" class="btn-outline" style="display:none; color:var(--green-800); border-color:var(--green-800);">ยกเลิกแก้ไข</button>
+        </div>
+        <p id="highlight-form-msg" class="admin-msg"></p>
+      </div>
+
+      <div>
+        <input type="text" id="highlight-search" class="admin-search" placeholder="ค้นหาจากชื่อ...">
+        <div id="highlight-list" class="admin-list"></div>
       </div>
     </div>
   </section>

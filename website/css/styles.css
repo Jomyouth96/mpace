@@ -23,6 +23,7 @@ img{ max-width:100%; }
 
 .navlink{ font-size:15px; font-weight:500; color:var(--text-dark); }
 .navlink:hover{ color:var(--green-700); }
+.navlink-active{ color:var(--green-800); font-weight:700; }
 
 .btn-primary{ background:var(--gold-500); color:var(--green-900); font-weight:600; border:none; padding:14px 30px; border-radius:999px; font-size:15px; }
 .btn-primary:hover{ background:var(--gold-600); }

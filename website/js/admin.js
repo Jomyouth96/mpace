@@ -154,6 +154,7 @@
     loadCalendar();
     loadProducts();
     loadServices();
+    loadHighlights();
     loadStories();
     loadQuestions();
   }
@@ -218,6 +219,7 @@
     calendar: document.getElementById('tab-calendar'),
     products: document.getElementById('tab-products'),
     services: document.getElementById('tab-services'),
+    highlights: document.getElementById('tab-highlights'),
     stories: document.getElementById('tab-stories'),
     qa: document.getElementById('tab-qa')
   };
@@ -488,6 +490,115 @@
       nearbySaveBtn.disabled = false;
       nearbyFormMsg.textContent = err.message || 'เกิดข้อผิดพลาด';
       nearbyFormMsg.className = 'admin-msg error';
+    });
+  });
+
+  // ============ HIGHLIGHTS ("สิ่งที่น่าสนใจ") ============
+  var highlightIdField = document.getElementById('highlight-id');
+  var highlightName = document.getElementById('highlight-name');
+  var highlightDescription = document.getElementById('highlight-description');
+  var highlightImages = createImagePicker('highlight-images-picker');
+  var highlightFormTitle = document.getElementById('highlight-form-title');
+  var highlightSaveBtn = document.getElementById('highlight-save-btn');
+  var highlightCancelBtn = document.getElementById('highlight-cancel-btn');
+  var highlightFormMsg = document.getElementById('highlight-form-msg');
+  var highlightList = document.getElementById('highlight-list');
+  highlightImages.setImages([]);
+
+  function resetHighlightForm() {
+    highlightIdField.value = '';
+    highlightName.value = '';
+    highlightDescription.value = '';
+    highlightImages.setImages([]);
+    highlightFormTitle.textContent = 'เพิ่ม "สิ่งที่น่าสนใจ" ใหม่';
+    highlightCancelBtn.style.display = 'none';
+    highlightFormMsg.textContent = '';
+  }
+
+  highlightCancelBtn.addEventListener('click', resetHighlightForm);
+
+  var highlightSearch = document.getElementById('highlight-search');
+  var highlightsCache = [];
+
+  function loadHighlights() {
+    api('/api/highlights').then(function (result) {
+      if (!result.ok) return;
+      highlightsCache = result.data;
+      renderHighlightList(highlightsCache);
+    });
+  }
+
+  function renderHighlightList(items) {
+      highlightList.innerHTML = '';
+      if (items.length === 0) {
+        highlightList.innerHTML = '<div class="admin-empty">' +
+          (highlightsCache.length === 0 ? 'ยังไม่มีข้อมูล' : 'ไม่พบรายการที่ตรงกับการค้นหา') + '</div>';
+        return;
+      }
+      items.forEach(function (h) {
+        var img = (h.images && h.images[0]) ? h.images[0] : null;
+        var item = document.createElement('div');
+        item.className = 'card admin-item';
+        item.innerHTML =
+          (img ? '<img src="' + escapeHtml(img) + '">' : '<div class="thumb-fallback">ไม่มีรูป</div>') +
+          '<div class="admin-item-body">' +
+            '<h5>' + escapeHtml(h.name) + '</h5>' +
+            '<p>' + escapeHtml(h.description) + '</p>' +
+            '<div class="admin-item-meta">' + (h.images ? h.images.length + ' รูป' : '0 รูป') + '</div>' +
+          '</div>' +
+          '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
+        item.querySelector('.edit-btn').addEventListener('click', function () {
+          highlightIdField.value = h.id;
+          highlightName.value = h.name;
+          highlightDescription.value = h.description;
+          highlightImages.setImages(h.images || []);
+          highlightFormTitle.textContent = 'แก้ไข "สิ่งที่น่าสนใจ"';
+          highlightCancelBtn.style.display = 'inline-block';
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        item.querySelector('.delete-btn').addEventListener('click', function () {
+          if (!confirm('ลบ "' + h.name + '" ใช่หรือไม่?')) return;
+          api('/api/highlights/' + h.id, { method: 'DELETE' }).then(function () { loadHighlights(); });
+        });
+        highlightList.appendChild(item);
+      });
+  }
+
+  highlightSearch.addEventListener('input', function () {
+    var q = highlightSearch.value.trim().toLowerCase();
+    renderHighlightList(q ? highlightsCache.filter(function (h) { return h.name.toLowerCase().indexOf(q) !== -1; }) : highlightsCache);
+  });
+
+  highlightSaveBtn.addEventListener('click', function () {
+    var name = highlightName.value.trim();
+    var description = highlightDescription.value.trim();
+    if (!name || !description) {
+      highlightFormMsg.textContent = 'กรุณากรอกชื่อและรายละเอียด';
+      highlightFormMsg.className = 'admin-msg error';
+      return;
+    }
+    highlightSaveBtn.disabled = true;
+    highlightImages.uploadAndGetImages().then(function (images) {
+      var id = highlightIdField.value;
+      var payload = { name: name, description: description, images: images };
+      return id
+        ? api('/api/highlights/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        : api('/api/highlights', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    }).then(function (result) {
+      highlightSaveBtn.disabled = false;
+      if (result.ok && result.data.success) {
+        highlightFormMsg.textContent = 'บันทึกสำเร็จ';
+        highlightFormMsg.className = 'admin-msg success';
+        resetHighlightForm();
+        loadHighlights();
+      } else {
+        highlightFormMsg.textContent = (result.data && result.data.error) || 'บันทึกไม่สำเร็จ';
+        highlightFormMsg.className = 'admin-msg error';
+      }
+    }).catch(function (err) {
+      highlightSaveBtn.disabled = false;
+      highlightFormMsg.textContent = err.message || 'เกิดข้อผิดพลาด';
+      highlightFormMsg.className = 'admin-msg error';
     });
   });
 
