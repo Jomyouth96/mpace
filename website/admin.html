@@ -44,6 +44,7 @@
     <button class="pill-btn active" data-tab="attractions">แหล่งท่องเที่ยว</button>
     <button class="pill-btn" data-tab="nearby">แหล่งท่องเที่ยวใกล้เคียง</button>
     <button class="pill-btn" data-tab="calendar">ปฏิทินประสบการณ์</button>
+    <button class="pill-btn" data-tab="seasons">ฤดูกาลแนะนำ</button>
     <button class="pill-btn" data-tab="products">สินค้า</button>
     <button class="pill-btn" data-tab="services">บริการ</button>
     <button class="pill-btn" data-tab="highlights">สิ่งที่น่าสนใจ</button>
@@ -180,6 +181,31 @@
         <button id="calendar-save-btn" class="btn-primary">บันทึกเดือนนี้</button>
       </div>
       <p id="calendar-form-msg" class="admin-msg"></p>
+    </div>
+  </section>
+
+  <!-- ============ SEASONAL PICKS TAB ("ฤดูกาลแนะนำ") ============ -->
+  <section id="tab-seasons" class="container admin-panel" style="display:none;">
+    <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">เลือกฤดูที่ต้องการแก้ไข แล้วกรอกช่วงเวลา รายละเอียด และรูปภาพ</p>
+    <div class="pill-row" id="season-admin-buttons"></div>
+    <div class="card admin-form" style="max-width:640px;">
+      <h3 id="season-form-title">แก้ไขข้อมูลฤดู</h3>
+      <div class="form-field">
+        <label for="season-period-input">ช่วงเวลา (เช่น มี.ค.–มิ.ย.)</label>
+        <input id="season-period-input" type="text" placeholder="เช่น มี.ค.–มิ.ย.">
+      </div>
+      <div class="form-field">
+        <label for="season-description-input">รายละเอียด</label>
+        <textarea id="season-description-input" rows="3" placeholder="รายละเอียดแนะนำสำหรับฤดูนี้..."></textarea>
+      </div>
+      <div class="form-field">
+        <label>รูปภาพ (เพิ่มได้หลายรูป)</label>
+        <div id="season-images-picker"></div>
+      </div>
+      <div class="admin-form-actions">
+        <button id="season-save-btn" class="btn-primary">บันทึกฤดูนี้</button>
+      </div>
+      <p id="season-form-msg" class="admin-msg"></p>
     </div>
   </section>
 

@@ -339,45 +339,52 @@ var Modal = (function () {
     });
 })();
 
-// ============ SEASONAL PICKS ============
+// ============ SEASONAL PICKS (dynamic, admin-editable) ============
 (function () {
-  var seasons = [
-    { descKey: 'season_summer_desc', picks: ['ทุ่งนาอินทรีย์แม่หอพระ', 'วัดบ้านกาด'] },
-    { descKey: 'season_rainy_desc', picks: ['น้ำตกหินปูน', 'บ่อน้ำสีมรกต'] },
-    { descKey: 'season_winter_desc', picks: ['ถ้ำศักดิ์สิทธิ์', 'ทุ่งนาอินทรีย์แม่หอพระ'] }
-  ];
-
+  var SEASON_ORDER = ['summer', 'rainy', 'winter'];
   var buttons = document.querySelectorAll('#season-buttons .season-btn');
   var descEl = document.getElementById('season-desc');
   var picksEl = document.getElementById('season-picks');
   if (!descEl) return;
 
+  var seasonsData = [];
   var currentIndex = 0;
 
   function render(index) {
     currentIndex = index;
-    var s = seasons[index];
-    descEl.textContent = window.t ? window.t(s.descKey) : '';
-    picksEl.innerHTML = '';
-    s.picks.forEach(function (name) {
-      var span = document.createElement('span');
-      span.className = 'tag-gold';
-      span.textContent = name;
-      picksEl.appendChild(span);
+    var key = SEASON_ORDER[index];
+    var s = seasonsData.find(function (x) { return x.season_key === key; });
+    buttons.forEach(function (b, i) {
+      b.classList.toggle('active', i === index);
+      var bKey = SEASON_ORDER[i];
+      var bs = seasonsData.find(function (x) { return x.season_key === bKey; });
+      var name = window.t ? window.t('season_' + bKey) : bKey;
+      b.textContent = name + (bs && bs.period_text ? ' (' + bs.period_text + ')' : '');
     });
+    if (!s) { descEl.textContent = ''; picksEl.innerHTML = ''; return; }
+    descEl.textContent = s.description || '';
+    picksEl.innerHTML = (s.images && s.images.length)
+      ? '<div class="season-images">' + s.images.map(function (src) {
+          return '<img src="' + escapeHtml(src) + '" alt="">';
+        }).join('') + '</div>'
+      : '';
   }
 
   buttons.forEach(function (btn) {
     btn.addEventListener('click', function () {
-      buttons.forEach(function (b) { b.classList.remove('active'); });
-      btn.classList.add('active');
       render(parseInt(btn.getAttribute('data-season'), 10));
     });
   });
 
   window.addEventListener('langchange', function () { render(currentIndex); });
 
-  render(0);
+  fetch(API_BASE + '/api/seasons')
+    .then(function (res) { return res.json(); })
+    .then(function (data) {
+      seasonsData = data;
+      render(0);
+    })
+    .catch(function () { render(0); });
 })();
 
 // ============ 12-MONTH CALENDAR (dynamic, split optional blocks + gallery) ============

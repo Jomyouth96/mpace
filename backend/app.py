@@ -275,6 +275,16 @@ def init_db():
             )
             """
         )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS seasons (
+                season_key TEXT PRIMARY KEY CHECK (season_key IN ('summer', 'rainy', 'winter')),
+                period_text TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
+                images TEXT NOT NULL DEFAULT '[]'
+            )
+            """
+        )
         db.commit()
 
         # Add real-map location columns to attractions if reusing an older
@@ -484,6 +494,21 @@ def init_db():
                 "INSERT INTO calendar_months (month_index, label, traditions, activities, products, images) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
                 rows,
+            )
+            db.commit()
+
+        # Seed the 3 fixed seasonal-picks rows once, from what is already
+        # live on the site.
+        seeded = db.execute("SELECT COUNT(*) FROM seasons").fetchone()[0]
+        if seeded == 0:
+            season_rows = [
+                ("summer", "มี.ค.–มิ.ย.", "อากาศแจ่มใสยามเช้า เหมาะเดินชมทุ่งนาและกราบไหว้พระที่วัดบ้านกาดก่อนแดดจัด", []),
+                ("rainy", "ก.ค.–ต.ค.", "สายน้ำในน้ำตกและบ่อน้ำไหลแรงเต็มที่ ทุ่งนาเขียวขจีสุดสายตา เหมาะกับคนชอบธรรมชาติชุ่มฉ่ำ", []),
+                ("winter", "พ.ย.–ก.พ.", "อากาศเย็นสบาย เหมาะเดินป่าเข้าชมถ้ำ พร้อมสัมผัสทุ่งข้าวสีทองในช่วงเก็บเกี่ยว", []),
+            ]
+            db.executemany(
+                "INSERT INTO seasons (season_key, period_text, description, images) VALUES (?, ?, ?, ?)",
+                [(row[0], row[1], row[2], _images_to_db(row[3])) for row in season_rows],
             )
             db.commit()
 
@@ -1139,6 +1164,41 @@ def update_calendar_month(month_index):
     db.commit()
     if result.rowcount == 0:
         return jsonify({"success": False, "error": "ไม่พบเดือนนี้"}), 404
+    return jsonify({"success": True})
+
+
+# ============ SEASONAL PICKS ("แนะนำแหล่งท่องเที่ยวตามฤดูกาล") ============
+
+SEASON_KEYS = ("summer", "rainy", "winter")
+
+
+@app.get("/api/seasons")
+def list_seasons():
+    db = get_db()
+    rows = db.execute("SELECT * FROM seasons").fetchall()
+    by_key = {row["season_key"]: _row_with_images(row) for row in rows}
+    return jsonify([by_key[k] for k in SEASON_KEYS if k in by_key])
+
+
+@app.put("/api/seasons/<season_key>")
+@require_admin
+def update_season(season_key):
+    if season_key not in SEASON_KEYS:
+        return jsonify({"success": False, "error": "ฤดูกาลไม่ถูกต้อง"}), 400
+
+    payload = request.get_json(silent=True) or {}
+    period_text = (payload.get("period_text") or "").strip()
+    description = (payload.get("description") or "").strip()
+    images = _images_to_db(payload.get("images"))
+
+    db = get_db()
+    result = db.execute(
+        "UPDATE seasons SET period_text = ?, description = ?, images = ? WHERE season_key = ?",
+        (period_text, description, images, season_key),
+    )
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบฤดูกาลนี้"}), 404
     return jsonify({"success": True})
 
 

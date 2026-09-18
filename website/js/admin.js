@@ -152,6 +152,7 @@
     loadAttractions();
     loadNearby();
     loadCalendar();
+    loadSeasons();
     loadProducts();
     loadServices();
     loadHighlights();
@@ -217,6 +218,7 @@
     attractions: document.getElementById('tab-attractions'),
     nearby: document.getElementById('tab-nearby'),
     calendar: document.getElementById('tab-calendar'),
+    seasons: document.getElementById('tab-seasons'),
     products: document.getElementById('tab-products'),
     services: document.getElementById('tab-services'),
     highlights: document.getElementById('tab-highlights'),
@@ -676,6 +678,79 @@
       calSaveBtn.disabled = false;
       calFormMsg.textContent = err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
       calFormMsg.className = 'admin-msg error';
+    });
+  });
+
+  // ============ SEASONAL PICKS ("ฤดูกาลแนะนำ") ============
+  var SEASON_LABELS = { summer: 'ฤดูร้อน', rainy: 'ฤดูฝน', winter: 'ฤดูหนาว' };
+  var seasonsData = [];
+  var selectedSeasonKey = 'summer';
+  var seasonAdminButtons = document.getElementById('season-admin-buttons');
+  var seasonFormTitle = document.getElementById('season-form-title');
+  var seasonPeriodInput = document.getElementById('season-period-input');
+  var seasonDescriptionInput = document.getElementById('season-description-input');
+  var seasonImages = createImagePicker('season-images-picker');
+  var seasonSaveBtn = document.getElementById('season-save-btn');
+  var seasonFormMsg = document.getElementById('season-form-msg');
+  seasonImages.setImages([]);
+
+  function fillSeasonForm(key) {
+    selectedSeasonKey = key;
+    var s = seasonsData.find(function (x) { return x.season_key === key; }) || {};
+    seasonFormTitle.textContent = 'แก้ไขข้อมูล' + SEASON_LABELS[key];
+    seasonPeriodInput.value = s.period_text || '';
+    seasonDescriptionInput.value = s.description || '';
+    seasonImages.setImages(s.images || []);
+    seasonFormMsg.textContent = '';
+    seasonAdminButtons.querySelectorAll('.pill-btn').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-key') === key);
+    });
+  }
+
+  function loadSeasons() {
+    api('/api/seasons').then(function (result) {
+      if (!result.ok) return;
+      seasonsData = result.data;
+      seasonAdminButtons.innerHTML = '';
+      seasonsData.forEach(function (s, i) {
+        var btn = document.createElement('button');
+        btn.className = 'pill-btn' + (i === 0 ? ' active' : '');
+        btn.setAttribute('data-key', s.season_key);
+        btn.textContent = SEASON_LABELS[s.season_key];
+        btn.addEventListener('click', function () { fillSeasonForm(s.season_key); });
+        seasonAdminButtons.appendChild(btn);
+      });
+      if (seasonsData.length) fillSeasonForm(seasonsData[0].season_key);
+    });
+  }
+
+  seasonSaveBtn.addEventListener('click', function () {
+    seasonSaveBtn.disabled = true;
+    seasonImages.uploadAndGetImages().then(function (images) {
+      var payload = {
+        period_text: seasonPeriodInput.value.trim(),
+        description: seasonDescriptionInput.value.trim(),
+        images: images
+      };
+      return api('/api/seasons/' + selectedSeasonKey, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }).then(function (result) {
+      seasonSaveBtn.disabled = false;
+      if (result.ok && result.data.success) {
+        seasonFormMsg.textContent = 'บันทึกสำเร็จ';
+        seasonFormMsg.className = 'admin-msg success';
+        loadSeasons();
+      } else {
+        seasonFormMsg.textContent = (result.data && result.data.error) || 'บันทึกไม่สำเร็จ';
+        seasonFormMsg.className = 'admin-msg error';
+      }
+    }).catch(function (err) {
+      seasonSaveBtn.disabled = false;
+      seasonFormMsg.textContent = err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+      seasonFormMsg.className = 'admin-msg error';
     });
   });
 
