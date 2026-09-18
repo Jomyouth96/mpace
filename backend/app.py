@@ -296,6 +296,35 @@ def init_db():
             db.execute("ALTER TABLE stories ADD COLUMN excerpt_zh TEXT")
             db.commit()
 
+        # Same optional EN/ZH translation pattern for attractions (name +
+        # description only — tag/category stay Thai-only structural fields).
+        existing_attr_cols2 = {row[1] for row in db.execute("PRAGMA table_info(attractions)").fetchall()}
+        if "name_en" not in existing_attr_cols2:
+            db.execute("ALTER TABLE attractions ADD COLUMN name_en TEXT")
+            db.execute("ALTER TABLE attractions ADD COLUMN description_en TEXT")
+            db.execute("ALTER TABLE attractions ADD COLUMN name_zh TEXT")
+            db.execute("ALTER TABLE attractions ADD COLUMN description_zh TEXT")
+            db.commit()
+
+        # Same pattern for products (name + description only).
+        existing_product_cols2 = {row[1] for row in db.execute("PRAGMA table_info(products)").fetchall()}
+        if "name_en" not in existing_product_cols2:
+            db.execute("ALTER TABLE products ADD COLUMN name_en TEXT")
+            db.execute("ALTER TABLE products ADD COLUMN description_en TEXT")
+            db.execute("ALTER TABLE products ADD COLUMN name_zh TEXT")
+            db.execute("ALTER TABLE products ADD COLUMN description_zh TEXT")
+            db.commit()
+
+        # Same pattern for services (name + description only — type-specific
+        # fields like schedule/includes/languages/license/awards stay Thai).
+        existing_service_cols2 = {row[1] for row in db.execute("PRAGMA table_info(services)").fetchall()}
+        if "name_en" not in existing_service_cols2:
+            db.execute("ALTER TABLE services ADD COLUMN name_en TEXT")
+            db.execute("ALTER TABLE services ADD COLUMN description_en TEXT")
+            db.execute("ALTER TABLE services ADD COLUMN name_zh TEXT")
+            db.execute("ALTER TABLE services ADD COLUMN description_zh TEXT")
+            db.commit()
+
         # Migrate calendar_months from the old one-tradition/one-activity
         # schema to the new traditions[]/activities[] lists, if an older
         # database is being reused. Preserves every other table untouched.
@@ -681,6 +710,10 @@ def _parse_product_payload(payload):
         "images": _images_to_db(payload.get("images")),
         "tags": _images_to_db(payload.get("tags")),
         "sort_order": int(payload.get("sort_order") or 0),
+        "name_en": (payload.get("name_en") or "").strip() or None,
+        "description_en": (payload.get("description_en") or "").strip() or None,
+        "name_zh": (payload.get("name_zh") or "").strip() or None,
+        "description_zh": (payload.get("description_zh") or "").strip() or None,
     }
 
 
@@ -693,10 +726,12 @@ def create_product():
 
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO products (kind, name, description, price_text, images, tags, sort_order, created_at) "
-        "VALUES ('product', ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO products (kind, name, description, price_text, images, tags, sort_order, "
+        "name_en, description_en, name_zh, description_zh, created_at) "
+        "VALUES ('product', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (data["name"], data["description"], data["price_text"], data["images"], data["tags"],
-         data["sort_order"], datetime.now(timezone.utc).isoformat()),
+         data["sort_order"], data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
+         datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
     return jsonify({"success": True, "id": cursor.lastrowid}), 201
@@ -711,10 +746,11 @@ def update_product(product_id):
 
     db = get_db()
     result = db.execute(
-        "UPDATE products SET name = ?, description = ?, price_text = ?, images = ?, tags = ?, sort_order = ? "
-        "WHERE id = ? AND kind = 'product'",
+        "UPDATE products SET name = ?, description = ?, price_text = ?, images = ?, tags = ?, sort_order = ?, "
+        "name_en = ?, description_en = ?, name_zh = ?, description_zh = ? WHERE id = ? AND kind = 'product'",
         (data["name"], data["description"], data["price_text"], data["images"], data["tags"],
-         data["sort_order"], product_id),
+         data["sort_order"], data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
+         product_id),
     )
     db.commit()
     if result.rowcount == 0:
@@ -759,6 +795,10 @@ def _parse_service_payload(payload):
         "awards": (payload.get("awards") or "").strip() or None,
         "tags": _images_to_db(payload.get("tags")),
         "sort_order": int(payload.get("sort_order") or 0),
+        "name_en": (payload.get("name_en") or "").strip() or None,
+        "description_en": (payload.get("description_en") or "").strip() or None,
+        "name_zh": (payload.get("name_zh") or "").strip() or None,
+        "description_zh": (payload.get("description_zh") or "").strip() or None,
     }
 
 
@@ -772,11 +812,14 @@ def create_service():
     db = get_db()
     cursor = db.execute(
         "INSERT INTO services (service_type, name, description, images, price_text, schedule_text, "
-        "includes_text, languages, license_no, awards, tags, sort_order, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "includes_text, languages, license_no, awards, tags, sort_order, name_en, description_en, "
+        "name_zh, description_zh, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (data["service_type"], data["name"], data["description"], data["images"], data["price_text"],
          data["schedule_text"], data["includes_text"], data["languages"], data["license_no"],
-         data["awards"], data["tags"], data["sort_order"], datetime.now(timezone.utc).isoformat()),
+         data["awards"], data["tags"], data["sort_order"],
+         data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
+         datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
     return jsonify({"success": True, "id": cursor.lastrowid}), 201
@@ -793,10 +836,11 @@ def update_service(service_id):
     result = db.execute(
         "UPDATE services SET service_type = ?, name = ?, description = ?, images = ?, price_text = ?, "
         "schedule_text = ?, includes_text = ?, languages = ?, license_no = ?, awards = ?, tags = ?, "
-        "sort_order = ? WHERE id = ?",
+        "sort_order = ?, name_en = ?, description_en = ?, name_zh = ?, description_zh = ? WHERE id = ?",
         (data["service_type"], data["name"], data["description"], data["images"], data["price_text"],
          data["schedule_text"], data["includes_text"], data["languages"], data["license_no"],
-         data["awards"], data["tags"], data["sort_order"], service_id),
+         data["awards"], data["tags"], data["sort_order"],
+         data["name_en"], data["description_en"], data["name_zh"], data["description_zh"], service_id),
     )
     db.commit()
     if result.rowcount == 0:
@@ -837,6 +881,10 @@ def _parse_attraction_payload(payload):
         "map_url": map_url,
         "lat": lat,
         "lng": lng,
+        "name_en": (payload.get("name_en") or "").strip() or None,
+        "description_en": (payload.get("description_en") or "").strip() or None,
+        "name_zh": (payload.get("name_zh") or "").strip() or None,
+        "description_zh": (payload.get("description_zh") or "").strip() or None,
     }
 
 
@@ -850,9 +898,11 @@ def create_attraction():
     db = get_db()
     cursor = db.execute(
         "INSERT INTO attractions (category, name, tag, description, images, sort_order, "
-        "map_url, lat, lng, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "map_url, lat, lng, name_en, description_en, name_zh, description_zh, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (data["category"], data["name"], data["tag"], data["description"], data["images"],
          data["sort_order"], data["map_url"], data["lat"], data["lng"],
+         data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
          datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
@@ -869,9 +919,11 @@ def update_attraction(attraction_id):
     db = get_db()
     result = db.execute(
         "UPDATE attractions SET category = ?, name = ?, tag = ?, description = ?, images = ?, "
-        "sort_order = ?, map_url = ?, lat = ?, lng = ? WHERE id = ?",
+        "sort_order = ?, map_url = ?, lat = ?, lng = ?, name_en = ?, description_en = ?, "
+        "name_zh = ?, description_zh = ? WHERE id = ?",
         (data["category"], data["name"], data["tag"], data["description"], data["images"],
-         data["sort_order"], data["map_url"], data["lat"], data["lng"], attraction_id),
+         data["sort_order"], data["map_url"], data["lat"], data["lng"],
+         data["name_en"], data["description_en"], data["name_zh"], data["description_zh"], attraction_id),
     )
     db.commit()
     if result.rowcount == 0:

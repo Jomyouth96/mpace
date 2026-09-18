@@ -236,6 +236,10 @@
   var attractionName = document.getElementById('attraction-name');
   var attractionTag = document.getElementById('attraction-tag');
   var attractionDescription = document.getElementById('attraction-description');
+  var attractionNameEn = document.getElementById('attraction-name-en');
+  var attractionDescriptionEn = document.getElementById('attraction-description-en');
+  var attractionNameZh = document.getElementById('attraction-name-zh');
+  var attractionDescriptionZh = document.getElementById('attraction-description-zh');
   var attractionMapUrl = document.getElementById('attraction-map-url');
   var attractionMapStatus = document.getElementById('attraction-map-status');
   var attractionImages = createImagePicker('attraction-images-picker');
@@ -252,6 +256,10 @@
     attractionName.value = '';
     attractionTag.value = '';
     attractionDescription.value = '';
+    attractionNameEn.value = '';
+    attractionDescriptionEn.value = '';
+    attractionNameZh.value = '';
+    attractionDescriptionZh.value = '';
     attractionMapUrl.value = '';
     attractionMapStatus.textContent = '';
     attractionImages.setImages([]);
@@ -289,7 +297,7 @@
           '<div class="admin-item-body">' +
             '<h5>' + escapeHtml(place.name) + '</h5>' +
             '<p>' + escapeHtml(place.description) + '</p>' +
-            '<div class="admin-item-meta">' + (place.category === 'nature' ? 'ธรรมชาติ' : 'วัฒนธรรม') + (place.tag ? ' · ' + escapeHtml(place.tag) : '') + (place.images ? ' · ' + place.images.length + ' รูป' : '') + ' · ' + (place.lat != null && place.lng != null ? '📍 ปักหมุดแล้ว' : 'ยังไม่ได้ปักหมุดบนแผนที่') + '</div>' +
+            '<div class="admin-item-meta">' + (place.category === 'nature' ? 'ธรรมชาติ' : 'วัฒนธรรม') + (place.tag ? ' · ' + escapeHtml(place.tag) : '') + (place.images ? ' · ' + place.images.length + ' รูป' : '') + ' · ' + (place.lat != null && place.lng != null ? '📍 ปักหมุดแล้ว' : 'ยังไม่ได้ปักหมุดบนแผนที่') + ' · ภาษา: ไทย' + (place.name_en && place.description_en ? ', EN' : '') + (place.name_zh && place.description_zh ? ', 中文' : '') + '</div>' +
           '</div>' +
           '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
         item.querySelector('.edit-btn').addEventListener('click', function () {
@@ -298,6 +306,10 @@
           attractionName.value = place.name;
           attractionTag.value = place.tag || '';
           attractionDescription.value = place.description;
+          attractionNameEn.value = place.name_en || '';
+          attractionDescriptionEn.value = place.description_en || '';
+          attractionNameZh.value = place.name_zh || '';
+          attractionDescriptionZh.value = place.description_zh || '';
           attractionMapUrl.value = place.map_url || '';
           attractionMapStatus.textContent = (place.lat != null && place.lng != null)
             ? 'พิกัดปัจจุบัน: ' + place.lat.toFixed(5) + ', ' + place.lng.toFixed(5)
@@ -336,6 +348,10 @@
         name: name,
         tag: attractionTag.value.trim(),
         description: description,
+        name_en: attractionNameEn.value.trim(),
+        description_en: attractionDescriptionEn.value.trim(),
+        name_zh: attractionNameZh.value.trim(),
+        description_zh: attractionDescriptionZh.value.trim(),
         map_url: attractionMapUrl.value.trim(),
         images: images
       };
@@ -556,6 +572,10 @@
   var productIdField = document.getElementById('product-id');
   var productName = document.getElementById('product-name');
   var productDescription = document.getElementById('product-description');
+  var productNameEn = document.getElementById('product-name-en');
+  var productDescriptionEn = document.getElementById('product-description-en');
+  var productNameZh = document.getElementById('product-name-zh');
+  var productDescriptionZh = document.getElementById('product-description-zh');
   var productPrice = document.getElementById('product-price');
   var productTags = document.getElementById('product-tags');
   var productImages = createImagePicker('product-images-picker');
@@ -572,6 +592,10 @@
     productDescription.value = '';
     productPrice.value = '';
     productTags.value = '';
+    productNameEn.value = '';
+    productDescriptionEn.value = '';
+    productNameZh.value = '';
+    productDescriptionZh.value = '';
     productImages.setImages([]);
     productFormTitle.textContent = 'เพิ่มสินค้าใหม่';
     productCancelBtn.style.display = 'none';
@@ -608,7 +632,7 @@
           '<div class="admin-item-body">' +
             '<h5>' + escapeHtml(p.name) + '</h5>' +
             '<p>' + escapeHtml(p.description) + '</p>' +
-            '<div class="admin-item-meta">' + escapeHtml(p.price_text || '') + (p.images ? ' · ' + p.images.length + ' รูป' : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + '</div>' +
+            '<div class="admin-item-meta">' + escapeHtml(p.price_text || '') + (p.images ? ' · ' + p.images.length + ' รูป' : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + ' · ภาษา: ไทย' + (p.name_en && p.description_en ? ', EN' : '') + (p.name_zh && p.description_zh ? ', 中文' : '') + '</div>' +
           '</div>' +
           '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
         item.querySelector('.edit-btn').addEventListener('click', function () {
@@ -617,6 +641,10 @@
           productDescription.value = p.description;
           productPrice.value = p.price_text || '';
           productTags.value = tags.join(', ');
+          productNameEn.value = p.name_en || '';
+          productDescriptionEn.value = p.description_en || '';
+          productNameZh.value = p.name_zh || '';
+          productDescriptionZh.value = p.description_zh || '';
           productImages.setImages(p.images || []);
           productFormTitle.textContent = 'แก้ไขสินค้า';
           productCancelBtn.style.display = 'inline-block';
@@ -649,7 +677,11 @@
     productImages.uploadAndGetImages().then(function (images) {
       var id = productIdField.value;
       var tags = productTags.value.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
-      var payload = { name: name, description: description, price_text: productPrice.value.trim(), tags: tags, images: images };
+      var payload = {
+        name: name, description: description, price_text: productPrice.value.trim(), tags: tags, images: images,
+        name_en: productNameEn.value.trim(), description_en: productDescriptionEn.value.trim(),
+        name_zh: productNameZh.value.trim(), description_zh: productDescriptionZh.value.trim()
+      };
       return id
         ? api('/api/products/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         : api('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -688,6 +720,10 @@
   var serviceType = document.getElementById('service-type');
   var serviceName = document.getElementById('service-name');
   var serviceDescription = document.getElementById('service-description');
+  var serviceNameEn = document.getElementById('service-name-en');
+  var serviceDescriptionEn = document.getElementById('service-description-en');
+  var serviceNameZh = document.getElementById('service-name-zh');
+  var serviceDescriptionZh = document.getElementById('service-description-zh');
   var serviceImages = createImagePicker('service-images-picker');
   var servicePrice = document.getElementById('service-price');
   var serviceSchedule = document.getElementById('service-schedule');
@@ -734,6 +770,10 @@
     serviceLicense.value = '';
     serviceAwards.value = '';
     serviceTags.value = '';
+    serviceNameEn.value = '';
+    serviceDescriptionEn.value = '';
+    serviceNameZh.value = '';
+    serviceDescriptionZh.value = '';
     updateServiceFieldVisibility();
     serviceFormTitle.textContent = 'เพิ่มบริการใหม่';
     serviceCancelBtn.style.display = 'none';
@@ -770,7 +810,7 @@
           '<div class="admin-item-body">' +
             '<h5>' + escapeHtml(s.name) + '</h5>' +
             '<p>' + escapeHtml(s.description) + '</p>' +
-            '<div class="admin-item-meta">' + SERVICE_TYPE_LABELS[s.service_type] + (s.price_text ? ' · ' + escapeHtml(s.price_text) : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + '</div>' +
+            '<div class="admin-item-meta">' + SERVICE_TYPE_LABELS[s.service_type] + (s.price_text ? ' · ' + escapeHtml(s.price_text) : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + ' · ภาษา: ไทย' + (s.name_en && s.description_en ? ', EN' : '') + (s.name_zh && s.description_zh ? ', 中文' : '') + '</div>' +
           '</div>' +
           '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
         item.querySelector('.edit-btn').addEventListener('click', function () {
@@ -778,6 +818,10 @@
           serviceType.value = s.service_type;
           serviceName.value = s.name;
           serviceDescription.value = s.description;
+          serviceNameEn.value = s.name_en || '';
+          serviceDescriptionEn.value = s.description_en || '';
+          serviceNameZh.value = s.name_zh || '';
+          serviceDescriptionZh.value = s.description_zh || '';
           serviceImages.setImages(s.images || []);
           servicePrice.value = s.price_text || '';
           serviceSchedule.value = s.schedule_text || '';
@@ -828,7 +872,11 @@
         languages: serviceLanguages.value.trim(),
         license_no: serviceLicense.value.trim(),
         awards: serviceAwards.value.trim(),
-        tags: serviceTags.value.split(',').map(function (t) { return t.trim(); }).filter(Boolean)
+        tags: serviceTags.value.split(',').map(function (t) { return t.trim(); }).filter(Boolean),
+        name_en: serviceNameEn.value.trim(),
+        description_en: serviceDescriptionEn.value.trim(),
+        name_zh: serviceNameZh.value.trim(),
+        description_zh: serviceDescriptionZh.value.trim()
       };
       return id
         ? api('/api/services/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })

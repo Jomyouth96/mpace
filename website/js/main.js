@@ -125,7 +125,7 @@ var Modal = (function () {
   return { open: open, close: close };
 })();
 
-// ============ ATTRACTIONS (dynamic, from the admin panel) ============
+// ============ ATTRACTIONS (dynamic, per-language, searchable via category filter + map) ============
 (function () {
   var grid = document.getElementById('attraction-grid');
   var filterButtons = document.querySelectorAll('#attraction-filters .pill-btn');
@@ -136,52 +136,59 @@ var Modal = (function () {
   // map has a sensible view even before every attraction has a pinned location.
   var COMMUNITY_CENTER = [19.1136158, 99.0202498];
 
-  function applyFilter(filter) {
-    grid.querySelectorAll('.place-card').forEach(function (card) {
-      var match = filter === 'all' || card.getAttribute('data-category') === filter;
-      card.classList.toggle('hidden', !match);
-    });
+  var allPlaces = [];
+  var activeFilter = 'all';
+  var map = null;
+  var markersLayer = null;
+  var fitDone = false;
+
+  // Thai fields are required on every attraction, so Thai always shows
+  // everything. EN/ZH only show attractions where that language's name +
+  // description were filled in by the admin.
+  function localize(p) {
+    var lang = window.getLang ? window.getLang() : 'th';
+    if (lang === 'en' && p.name_en && p.description_en) return { name: p.name_en, description: p.description_en };
+    if (lang === 'zh' && p.name_zh && p.description_zh) return { name: p.name_zh, description: p.description_zh };
+    if (lang === 'th') return { name: p.name, description: p.description };
+    return null;
   }
 
-  filterButtons.forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      filterButtons.forEach(function (b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      applyFilter(btn.getAttribute('data-filter'));
-    });
-  });
-
-  function openAttractionModal(p) {
+  function openAttractionModal(p, l) {
     Modal.open({
-      title: p.name,
-      tag: p.tag || (p.category === 'nature' ? 'ธรรมชาติ' : 'วัฒนธรรม'),
+      title: l.name,
+      tag: p.tag || (p.category === 'nature' ? (window.t ? window.t('legend_nature') : 'ธรรมชาติ') : (window.t ? window.t('legend_culture') : 'วัฒนธรรม')),
       images: p.images,
-      desc: p.description
+      desc: l.description
     });
   }
 
-  fetch(API_BASE + '/api/attractions')
-    .then(function (res) { return res.json(); })
-    .then(function (places) {
-      if (!places.length) {
-        grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_no_attractions') : '') + '</p>';
-        return;
-      }
-      grid.innerHTML = places.map(function (p) {
+  function render() {
+    var visible = allPlaces
+      .map(function (p) { return { p: p, l: localize(p) }; })
+      .filter(function (x) { return x.l; })
+      .filter(function (x) { return activeFilter === 'all' || x.p.category === activeFilter; });
+
+    if (!visible.length) {
+      grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' +
+        (window.t ? window.t(!allPlaces.length ? 'err_no_attractions' : 'no_results') : '') + '</p>';
+    } else {
+      grid.innerHTML = visible.map(function (x) {
+        var p = x.p, l = x.l;
         var cover = renderCoverHtml(
-          p.images, p.name,
+          p.images, l.name,
           '<div class="thumb"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#F3E9D2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
             (p.category === 'culture'
               ? '<path d="M12 2 4 7v3h16V7Z"/><path d="M5 10v9M9 10v9M15 10v9M19 10v9"/><path d="M3 21h18"/>'
               : '<path d="M12 22V12"/><path d="M12 12C12 7 8 4 4 4c0 5 3 8 8 8Z"/><path d="M12 12c0-5 4-8 8-8 0 5-3 8-8 8Z"/>') +
             '</svg></div>'
         );
+        var desc = l.description.length > 90 ? l.description.slice(0, 90) + '…' : l.description;
         return (
-          '<div id="place-' + p.id + '" class="card clickable place-card" data-category="' + escapeHtml(p.category) + '" data-id="' + p.id + '">' + cover +
+          '<div id="place-' + p.id + '" class="card clickable place-card" data-id="' + p.id + '">' + cover +
           '<div class="body">' +
-            '<span class="tag" style="width:fit-content;">' + escapeHtml(p.tag || (p.category === 'nature' ? 'ธรรมชาติ' : 'วัฒนธรรม')) + '</span>' +
-            '<h4>' + escapeHtml(p.name) + '</h4>' +
-            '<p>' + escapeHtml(p.description) + '</p>' +
+            '<span class="tag" style="width:fit-content;">' + escapeHtml(p.tag || (p.category === 'nature' ? (window.t ? window.t('legend_nature') : 'ธรรมชาติ') : (window.t ? window.t('legend_culture') : 'วัฒนธรรม'))) + '</span>' +
+            '<h4>' + escapeHtml(l.name) + '</h4>' +
+            '<p>' + escapeHtml(desc) + '</p>' +
           '</div></div>'
         );
       }).join('');
@@ -189,40 +196,66 @@ var Modal = (function () {
 
       grid.querySelectorAll('.place-card').forEach(function (card) {
         card.addEventListener('click', function () {
-          var p = places.find(function (x) { return String(x.id) === card.getAttribute('data-id'); });
-          if (p) openAttractionModal(p);
+          var x = visible.find(function (x) { return String(x.p.id) === card.getAttribute('data-id'); });
+          if (x) openAttractionModal(x.p, x.l);
         });
       });
+    }
 
-      // Build real map pins from live attraction GPS data (auto-added for new
-      // attractions the moment they have a Google Maps link saved in admin).
-      if (mapEl && window.L) {
-        var located = places.filter(function (p) { return p.lat != null && p.lng != null; });
-        var map = L.map(mapEl, { scrollWheelZoom: false }).setView(COMMUNITY_CENTER, 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors',
-          maxZoom: 19
-        }).addTo(map);
+    renderMapMarkers(visible);
+  }
 
-        located.forEach(function (p) {
-          var color = p.category === 'culture' ? '#2E6B47' : '#D9A441';
-          var marker = L.circleMarker([p.lat, p.lng], {
-            radius: 10, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1
-          }).addTo(map);
-          var popupEl = document.createElement('div');
-          popupEl.innerHTML =
-            '<h4>' + escapeHtml(p.name) + '</h4>' +
-            '<p>' + escapeHtml((p.description || '').slice(0, 60)) + (p.description && p.description.length > 60 ? '…' : '') + '</p>' +
-            '<span class="btn-link">ดูรายละเอียด →</span>';
-          popupEl.querySelector('.btn-link').addEventListener('click', function () { openAttractionModal(p); });
-          marker.bindPopup(popupEl);
-        });
+  function renderMapMarkers(visible) {
+    if (!mapEl || !window.L) return;
+    if (!map) {
+      map = L.map(mapEl, { scrollWheelZoom: false }).setView(COMMUNITY_CENTER, 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(map);
+      markersLayer = L.layerGroup().addTo(map);
+    }
+    markersLayer.clearLayers();
 
-        if (located.length) {
-          var bounds = L.latLngBounds(located.map(function (p) { return [p.lat, p.lng]; }));
-          map.fitBounds(bounds.pad(0.35), { maxZoom: 15 });
-        }
-      }
+    var located = visible.filter(function (x) { return x.p.lat != null && x.p.lng != null; });
+    located.forEach(function (x) {
+      var p = x.p, l = x.l;
+      var color = p.category === 'culture' ? '#2E6B47' : '#D9A441';
+      var marker = L.circleMarker([p.lat, p.lng], {
+        radius: 10, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1
+      }).addTo(markersLayer);
+      var popupEl = document.createElement('div');
+      popupEl.innerHTML =
+        '<h4>' + escapeHtml(l.name) + '</h4>' +
+        '<p>' + escapeHtml(l.description.slice(0, 60)) + (l.description.length > 60 ? '…' : '') + '</p>' +
+        '<span class="btn-link">' + (window.t ? window.t('view_details') : 'ดูรายละเอียด →') + '</span>';
+      popupEl.querySelector('.btn-link').addEventListener('click', function () { openAttractionModal(p, l); });
+      marker.bindPopup(popupEl);
+    });
+
+    if (located.length && !fitDone) {
+      var bounds = L.latLngBounds(located.map(function (x) { return [x.p.lat, x.p.lng]; }));
+      map.fitBounds(bounds.pad(0.35), { maxZoom: 15 });
+      fitDone = true;
+    }
+  }
+
+  filterButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      filterButtons.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      activeFilter = btn.getAttribute('data-filter');
+      render();
+    });
+  });
+
+  window.addEventListener('langchange', render);
+
+  fetch(API_BASE + '/api/attractions')
+    .then(function (res) { return res.json(); })
+    .then(function (places) {
+      allPlaces = places;
+      render();
     })
     .catch(function () {
       grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_attractions') : '') + '</p>';
@@ -570,20 +603,31 @@ var Modal = (function () {
   var allProducts = [];
   var activeTag = 'all';
 
-  function renderProductCard(p) {
+  // Thai fields are required, so Thai always shows everything. EN/ZH only
+  // show products where that language's name + description were filled in.
+  function localize(p) {
+    var lang = window.getLang ? window.getLang() : 'th';
+    if (lang === 'en' && p.name_en && p.description_en) return { name: p.name_en, description: p.description_en };
+    if (lang === 'zh' && p.name_zh && p.description_zh) return { name: p.name_zh, description: p.description_zh };
+    if (lang === 'th') return { name: p.name, description: p.description };
+    return null;
+  }
+
+  function renderProductCard(p, l) {
     var cover = renderCoverHtml(
-      p.images, p.name,
+      p.images, l.name,
       '<div class="thumb"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#1B4D2E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div>'
     );
     var priceHtml = p.price_text ? '<div class="product-price">' + escapeHtml(p.price_text) + '</div>' : '';
     var tagsHtml = (p.tags && p.tags.length)
       ? '<div>' + p.tags.map(function (t) { return '<span class="tag-chip">' + escapeHtml(t) + '</span>'; }).join('') + '</div>'
       : '';
+    var desc = l.description.length > 90 ? l.description.slice(0, 90) + '…' : l.description;
     return (
       '<div class="card clickable product-card" data-id="' + p.id + '">' + cover +
       '<div class="body">' +
-        '<h4>' + escapeHtml(p.name) + '</h4>' +
-        '<p>' + escapeHtml(p.description) + '</p>' +
+        '<h4>' + escapeHtml(l.name) + '</h4>' +
+        '<p>' + escapeHtml(desc) + '</p>' +
         tagsHtml +
         priceHtml +
       '</div></div>'
@@ -610,19 +654,22 @@ var Modal = (function () {
 
   function render() {
     var q = (searchInput.value || '').trim().toLowerCase();
-    var visible = allProducts.filter(function (p) {
-      var matchesTag = activeTag === 'all' || (p.tags || []).indexOf(activeTag) !== -1;
-      var matchesQuery = !q || p.name.toLowerCase().indexOf(q) !== -1 || (p.tags || []).join(' ').toLowerCase().indexOf(q) !== -1;
-      return matchesTag && matchesQuery;
-    });
+    var visible = allProducts
+      .map(function (p) { return { p: p, l: localize(p) }; })
+      .filter(function (x) { return x.l; })
+      .filter(function (x) {
+        var matchesTag = activeTag === 'all' || (x.p.tags || []).indexOf(activeTag) !== -1;
+        var matchesQuery = !q || x.l.name.toLowerCase().indexOf(q) !== -1 || (x.p.tags || []).join(' ').toLowerCase().indexOf(q) !== -1;
+        return matchesTag && matchesQuery;
+      });
     productGrid.innerHTML = visible.length
-      ? visible.map(renderProductCard).join('')
-      : '<p class="no-results">' + (window.t ? window.t(allProducts.length ? 'no_results' : 'err_load_products') : '') + '</p>';
+      ? visible.map(function (x) { return renderProductCard(x.p, x.l); }).join('')
+      : '<p class="no-results">' + (window.t ? window.t(!allProducts.length ? 'err_load_products' : 'no_results') : '') + '</p>';
     startCardCarousels(productGrid);
     productGrid.querySelectorAll('.product-card').forEach(function (card) {
       card.addEventListener('click', function () {
-        var p = allProducts.find(function (x) { return String(x.id) === card.getAttribute('data-id'); });
-        if (p) Modal.open({ title: p.name, images: p.images, desc: p.description, priceText: p.price_text });
+        var x = visible.find(function (x) { return String(x.p.id) === card.getAttribute('data-id'); });
+        if (x) Modal.open({ title: x.l.name, images: x.p.images, desc: x.l.description, priceText: x.p.price_text });
       });
     });
   }
@@ -657,6 +704,18 @@ var Modal = (function () {
   var allServices = [];
   var activeTag = 'all';
 
+  // Thai fields are required, so Thai always shows everything. EN/ZH only
+  // show services where that language's name + description were filled in.
+  // Type-specific fields (schedule, includes, languages, license, awards)
+  // stay Thai-only regardless of the selected language.
+  function localize(s) {
+    var lang = window.getLang ? window.getLang() : 'th';
+    if (lang === 'en' && s.name_en && s.description_en) return { name: s.name_en, description: s.description_en };
+    if (lang === 'zh' && s.name_zh && s.description_zh) return { name: s.name_zh, description: s.description_zh };
+    if (lang === 'th') return { name: s.name, description: s.description };
+    return null;
+  }
+
   function fieldsFor(s) {
     var fields = [];
     if (s.service_type === 'tour') {
@@ -674,20 +733,21 @@ var Modal = (function () {
     return fields;
   }
 
-  function renderServiceCard(s) {
+  function renderServiceCard(s, l) {
     var cover = renderCoverHtml(
-      s.images, s.name,
+      s.images, l.name,
       '<div class="thumb"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#1B4D2E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>'
     );
     var priceHtml = s.price_text ? '<div class="product-price">' + escapeHtml(s.price_text) + '</div>' : '';
     var tagsHtml = (s.tags && s.tags.length)
       ? '<div>' + s.tags.map(function (t) { return '<span class="tag-chip">' + escapeHtml(t) + '</span>'; }).join('') + '</div>'
       : '';
+    var desc = l.description.length > 90 ? l.description.slice(0, 90) + '…' : l.description;
     return (
       '<div class="card clickable product-card" data-id="' + s.id + '">' + cover +
       '<div class="body">' +
-        '<h4>' + escapeHtml(s.name) + '</h4>' +
-        '<p>' + escapeHtml(s.description) + '</p>' +
+        '<h4>' + escapeHtml(l.name) + '</h4>' +
+        '<p>' + escapeHtml(desc) + '</p>' +
         tagsHtml +
         priceHtml +
       '</div></div>'
@@ -714,34 +774,38 @@ var Modal = (function () {
 
   function render() {
     var q = (searchInput.value || '').trim().toLowerCase();
-    var visible = allServices.filter(function (s) {
-      var matchesTag = activeTag === 'all' || (s.tags || []).indexOf(activeTag) !== -1;
-      var matchesQuery = !q || s.name.toLowerCase().indexOf(q) !== -1 || (s.tags || []).join(' ').toLowerCase().indexOf(q) !== -1;
-      return matchesTag && matchesQuery;
-    });
+    var visible = allServices
+      .map(function (s) { return { s: s, l: localize(s) }; })
+      .filter(function (x) { return x.l; })
+      .filter(function (x) {
+        var matchesTag = activeTag === 'all' || (x.s.tags || []).indexOf(activeTag) !== -1;
+        var matchesQuery = !q || x.l.name.toLowerCase().indexOf(q) !== -1 || (x.s.tags || []).join(' ').toLowerCase().indexOf(q) !== -1;
+        return matchesTag && matchesQuery;
+      });
 
     if (!visible.length) {
-      wrap.innerHTML = '<p class="no-results">' + (window.t ? window.t(allServices.length ? 'no_results' : 'err_load_services') : '') + '</p>';
+      wrap.innerHTML = '<p class="no-results">' + (window.t ? window.t(!allServices.length ? 'err_load_services' : 'no_results') : '') + '</p>';
       return;
     }
     var html = '';
     TYPE_ORDER.forEach(function (type) {
-      var items = visible.filter(function (s) { return s.service_type === type; });
+      var items = visible.filter(function (x) { return x.s.service_type === type; });
       if (!items.length) return;
       html += '<div class="service-type-head"><h4>' + TYPE_LABELS[type] + '</h4></div>';
-      html += '<div class="product-grid">' + items.map(renderServiceCard).join('') + '</div>';
+      html += '<div class="product-grid">' + items.map(function (x) { return renderServiceCard(x.s, x.l); }).join('') + '</div>';
     });
     wrap.innerHTML = html;
     startCardCarousels(wrap);
     wrap.querySelectorAll('.product-card').forEach(function (card) {
       card.addEventListener('click', function () {
-        var s = allServices.find(function (x) { return String(x.id) === card.getAttribute('data-id'); });
-        if (s) {
+        var x = visible.find(function (x) { return String(x.s.id) === card.getAttribute('data-id'); });
+        if (x) {
+          var s = x.s;
           Modal.open({
-            title: s.name,
+            title: x.l.name,
             tag: TYPE_LABELS[s.service_type],
             images: s.images,
-            desc: s.description,
+            desc: x.l.description,
             fields: fieldsFor(s),
             priceText: s.price_text
           });
