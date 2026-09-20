@@ -283,8 +283,6 @@ def _extract_lat_lng(map_url):
 
 def init_db():
     with connect_db() as db:
-        if IS_PG:
-            db.execute("SELECT pg_advisory_lock(727001)")
         db.execute("CREATE TABLE IF NOT EXISTS seed_flags (name TEXT PRIMARY KEY)")
         if IS_PG:
             db.execute(
@@ -781,9 +779,6 @@ def init_db():
                 [(row[0], row[1], row[2], _images_to_db(row[3])) for row in season_rows],
             )
             db.commit()
-
-        if IS_PG:
-            db.execute("SELECT pg_advisory_unlock(727001)")
 
 
 @app.get("/api/health")
