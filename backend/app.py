@@ -11,7 +11,7 @@ from email.message import EmailMessage
 from functools import wraps
 
 from dotenv import load_dotenv
-from flask import Flask, g, jsonify, request, send_from_directory
+from flask import Flask, Response, g, jsonify, request, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
@@ -40,6 +40,129 @@ ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
 # different ports/domains). Tokens reset when the backend process restarts,
 # so the admin just logs in again; that's fine for a single small-team site.
 ACTIVE_ADMIN_TOKENS = set()
+
+# ============ DATABASE (SQLite for local dev, Postgres when DATABASE_URL is set) ============
+# Render's free web service wipes its disk whenever it sleeps or redeploys, so
+# in production the data lives in an external Postgres (e.g. Neon) instead.
+# The rest of the app talks to both through the same small interface:
+# db.execute(sql_with_?_placeholders, params) / .fetchone() / .fetchall() /
+# .rowcount / .lastrowid / .commit(), with rows readable by name or index.
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+IS_PG = bool(DATABASE_URL)
+
+if IS_PG:
+    import psycopg2
+    import psycopg2.extras
+
+    IntegrityError = psycopg2.IntegrityError
+else:
+    IntegrityError = sqlite3.IntegrityError
+
+_TABLES_WITHOUT_ID = {"seasons", "calendar_months", "seed_flags", "uploaded_images"}
+
+
+def _pg_translate(sql):
+    sql = sql.replace("%", "%%").replace("?", "%s")
+    head = sql.lstrip().upper()
+    if head.startswith(("CREATE", "ALTER")):
+        sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+        sql = re.sub(r"\bREAL\b", "DOUBLE PRECISION", sql)
+    return sql
+
+
+class _PgCursor:
+    def __init__(self, cursor, lastrowid=None):
+        self._cursor = cursor
+        self.lastrowid = lastrowid
+        self.rowcount = cursor.rowcount
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+
+class _PgConnection:
+    def __init__(self, dsn):
+        self._conn = psycopg2.connect(dsn, cursor_factory=psycopg2.extras.DictCursor)
+
+    def _run(self, fn):
+        try:
+            return fn()
+        except Exception:
+            self._conn.rollback()
+            raise
+
+    def execute(self, sql, params=()):
+        sql = _pg_translate(sql)
+        returning_id = False
+        match = re.match(r"\s*INSERT\s+INTO\s+(\w+)", sql, re.IGNORECASE)
+        if match and match.group(1).lower() not in _TABLES_WITHOUT_ID and "RETURNING" not in sql.upper():
+            sql += " RETURNING id"
+            returning_id = True
+
+        cursor = self._conn.cursor()
+
+        def go():
+            cursor.execute(sql, params)
+            return _PgCursor(cursor, cursor.fetchone()[0] if returning_id else None)
+
+        return self._run(go)
+
+    def executemany(self, sql, seq):
+        cursor = self._conn.cursor()
+        return self._run(lambda: (cursor.executemany(_pg_translate(sql), seq), _PgCursor(cursor))[1])
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type is None:
+            self._conn.commit()
+        else:
+            self._conn.rollback()
+        self._conn.close()
+        return False
+
+
+def connect_db():
+    if IS_PG:
+        return _PgConnection(DATABASE_URL)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _table_columns(db, table):
+    if IS_PG:
+        rows = db.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = ? AND table_schema = current_schema()",
+            (table,),
+        ).fetchall()
+        return {row[0] for row in rows}
+    return {row[1] for row in db.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _should_seed(db, name):
+    """True only the first time a table is ever seeded. Remembered in
+    seed_flags so that deleting every row in the admin panel doesn't make the
+    starter data reappear on the next restart."""
+    if db.execute("SELECT 1 FROM seed_flags WHERE name = ?", (name,)).fetchone():
+        return False
+    count = db.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
+    db.execute("INSERT INTO seed_flags (name) VALUES (?)", (name,))
+    db.commit()
+    return count == 0
+
 
 app = Flask(__name__)
 CORS(app)
@@ -87,8 +210,7 @@ def send_notification_email(name, contact, question):
 
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
+        g.db = connect_db()
     return g.db
 
 
@@ -160,7 +282,21 @@ def _extract_lat_lng(map_url):
 
 
 def init_db():
-    with sqlite3.connect(DB_PATH) as db:
+    with connect_db() as db:
+        if IS_PG:
+            db.execute("SELECT pg_advisory_lock(727001)")
+        db.execute("CREATE TABLE IF NOT EXISTS seed_flags (name TEXT PRIMARY KEY)")
+        if IS_PG:
+            db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS uploaded_images (
+                    filename TEXT PRIMARY KEY,
+                    content_type TEXT NOT NULL,
+                    data BYTEA NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
         db.execute(
             """
             CREATE TABLE IF NOT EXISTS qa_submissions (
@@ -338,7 +474,7 @@ def init_db():
 
         # Add real-map location columns to attractions if reusing an older
         # database that predates this feature.
-        existing_attr_cols = {row[1] for row in db.execute("PRAGMA table_info(attractions)").fetchall()}
+        existing_attr_cols = _table_columns(db, "attractions")
         if "map_url" not in existing_attr_cols:
             db.execute("ALTER TABLE attractions ADD COLUMN map_url TEXT")
             db.execute("ALTER TABLE attractions ADD COLUMN lat REAL")
@@ -347,7 +483,7 @@ def init_db():
 
         # Add coupon/discount columns to orders if reusing a database from
         # before the coupon system and per-order shipping existed.
-        existing_order_cols = {row[1] for row in db.execute("PRAGMA table_info(orders)").fetchall()}
+        existing_order_cols = _table_columns(db, "orders")
         if "coupon_code" not in existing_order_cols:
             db.execute("ALTER TABLE orders ADD COLUMN coupon_code TEXT")
             db.execute("ALTER TABLE orders ADD COLUMN discount_amount REAL NOT NULL DEFAULT 0")
@@ -357,7 +493,7 @@ def init_db():
         # order). It is now nullable, since shipping is quoted per order and
         # is unknown until the admin sets it. SQLite can't drop a NOT NULL
         # constraint in place, so rebuild the table if an older one is found.
-        shipping_col = next(
+        shipping_col = None if IS_PG else next(
             (row for row in db.execute("PRAGMA table_info(orders)").fetchall() if row[1] == "shipping_cost"),
             None,
         )
@@ -392,14 +528,14 @@ def init_db():
 
         # Add optional tag lists to products/services if reusing an older
         # database that predates this feature.
-        existing_product_cols = {row[1] for row in db.execute("PRAGMA table_info(products)").fetchall()}
+        existing_product_cols = _table_columns(db, "products")
         if "tags" not in existing_product_cols:
             db.execute("ALTER TABLE products ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
             db.commit()
         if "price_amount" not in existing_product_cols:
             db.execute("ALTER TABLE products ADD COLUMN price_amount REAL")
             db.commit()
-        existing_service_cols = {row[1] for row in db.execute("PRAGMA table_info(services)").fetchall()}
+        existing_service_cols = _table_columns(db, "services")
         if "tags" not in existing_service_cols:
             db.execute("ALTER TABLE services ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
             db.commit()
@@ -407,7 +543,7 @@ def init_db():
         # Add optional English/Chinese translation columns to stories if
         # reusing an older database that predates this feature. A story with
         # these left blank simply won't appear when EN/ZH is selected.
-        existing_story_cols = {row[1] for row in db.execute("PRAGMA table_info(stories)").fetchall()}
+        existing_story_cols = _table_columns(db, "stories")
         if "title_en" not in existing_story_cols:
             db.execute("ALTER TABLE stories ADD COLUMN title_en TEXT")
             db.execute("ALTER TABLE stories ADD COLUMN excerpt_en TEXT")
@@ -417,7 +553,7 @@ def init_db():
 
         # Same optional EN/ZH translation pattern for attractions (name +
         # description only — tag/category stay Thai-only structural fields).
-        existing_attr_cols2 = {row[1] for row in db.execute("PRAGMA table_info(attractions)").fetchall()}
+        existing_attr_cols2 = _table_columns(db, "attractions")
         if "name_en" not in existing_attr_cols2:
             db.execute("ALTER TABLE attractions ADD COLUMN name_en TEXT")
             db.execute("ALTER TABLE attractions ADD COLUMN description_en TEXT")
@@ -426,7 +562,7 @@ def init_db():
             db.commit()
 
         # Same pattern for products (name + description only).
-        existing_product_cols2 = {row[1] for row in db.execute("PRAGMA table_info(products)").fetchall()}
+        existing_product_cols2 = _table_columns(db, "products")
         if "name_en" not in existing_product_cols2:
             db.execute("ALTER TABLE products ADD COLUMN name_en TEXT")
             db.execute("ALTER TABLE products ADD COLUMN description_en TEXT")
@@ -436,7 +572,7 @@ def init_db():
 
         # Same pattern for services (name + description only — type-specific
         # fields like schedule/includes/languages/license/awards stay Thai).
-        existing_service_cols2 = {row[1] for row in db.execute("PRAGMA table_info(services)").fetchall()}
+        existing_service_cols2 = _table_columns(db, "services")
         if "name_en" not in existing_service_cols2:
             db.execute("ALTER TABLE services ADD COLUMN name_en TEXT")
             db.execute("ALTER TABLE services ADD COLUMN description_en TEXT")
@@ -447,7 +583,7 @@ def init_db():
         # service_type's CHECK constraint used to omit 'accommodation'. SQLite
         # can't alter a CHECK in place, so rebuild the table if an older one
         # is found (all columns above are present by this point).
-        services_sql = db.execute(
+        services_sql = "'accommodation'" if IS_PG else db.execute(
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'services'"
         ).fetchone()[0]
         if "'accommodation'" not in services_sql:
@@ -490,7 +626,7 @@ def init_db():
         # Migrate calendar_months from the old one-tradition/one-activity
         # schema to the new traditions[]/activities[] lists, if an older
         # database is being reused. Preserves every other table untouched.
-        existing_cols = {row[1] for row in db.execute("PRAGMA table_info(calendar_months)").fetchall()}
+        existing_cols = _table_columns(db, "calendar_months")
         if "tradition_title" in existing_cols:
             old_rows = db.execute(
                 "SELECT month_index, label, tradition_title, tradition_desc, "
@@ -522,8 +658,7 @@ def init_db():
 
         # Seed the products table once, from what is already live on the
         # site, so the admin panel starts populated instead of empty.
-        seeded = db.execute("SELECT COUNT(*) FROM products").fetchone()[0]
-        if seeded == 0:
+        if _should_seed(db, "products"):
             now = datetime.now(timezone.utc).isoformat()
             seed_rows = [
                 ("product", "ข้าวกล้องอินทรีย์", "ข้าวพันธุ์พื้นเมืองคัดพิเศษ ปลอดสารพิษ 100% ปลูกด้วยน้ำธรรมชาติ", "฿120 / กก.", [], 1),
@@ -542,8 +677,7 @@ def init_db():
 
         # Seed the services table once with the one real tour service already
         # on the site (as service_type "tour").
-        seeded = db.execute("SELECT COUNT(*) FROM services").fetchone()[0]
-        if seeded == 0:
+        if _should_seed(db, "services"):
             now = datetime.now(timezone.utc).isoformat()
             db.execute(
                 "INSERT INTO services (service_type, name, description, images, price_text, "
@@ -564,8 +698,7 @@ def init_db():
             db.commit()
 
         # Seed nearby_attractions once, from what is already live on the site.
-        seeded = db.execute("SELECT COUNT(*) FROM nearby_attractions").fetchone()[0]
-        if seeded == 0:
+        if _should_seed(db, "nearby_attractions"):
             now = datetime.now(timezone.utc).isoformat()
             nearby_rows = [
                 ("อ.แม่แตง", "ล่องแพแม่น้ำแม่แตง", "กิจกรรมล่องแพลำน้ำแม่แตง ตื่นเต้นท่ามกลางหุบเขาและป่าเขียว", [], 1),
@@ -581,8 +714,7 @@ def init_db():
             db.commit()
 
         # Seed attractions once, from what is already live on the site.
-        seeded = db.execute("SELECT COUNT(*) FROM attractions").fetchone()[0]
-        if seeded == 0:
+        if _should_seed(db, "attractions"):
             now = datetime.now(timezone.utc).isoformat()
             attraction_rows = [
                 ("nature", "ทุ่งนาอินทรีย์แม่หอพระ", "ธรรมชาติ",
@@ -609,8 +741,7 @@ def init_db():
             db.commit()
 
         # Seed all 12 calendar months once (most start blank / "no data").
-        seeded = db.execute("SELECT COUNT(*) FROM calendar_months").fetchone()[0]
-        if seeded == 0:
+        if _should_seed(db, "calendar_months"):
             month_labels = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
                              "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
             month_data = {
@@ -639,8 +770,7 @@ def init_db():
 
         # Seed the 3 fixed seasonal-picks rows once, from what is already
         # live on the site.
-        seeded = db.execute("SELECT COUNT(*) FROM seasons").fetchone()[0]
-        if seeded == 0:
+        if _should_seed(db, "seasons"):
             season_rows = [
                 ("summer", "มี.ค.–มิ.ย.", "อากาศแจ่มใสยามเช้า เหมาะเดินชมทุ่งนาและกราบไหว้พระที่วัดบ้านกาดก่อนแดดจัด", []),
                 ("rainy", "ก.ค.–ต.ค.", "สายน้ำในน้ำตกและบ่อน้ำไหลแรงเต็มที่ ทุ่งนาเขียวขจีสุดสายตา เหมาะกับคนชอบธรรมชาติชุ่มฉ่ำ", []),
@@ -651,6 +781,9 @@ def init_db():
                 [(row[0], row[1], row[2], _images_to_db(row[3])) for row in season_rows],
             )
             db.commit()
+
+        if IS_PG:
+            db.execute("SELECT pg_advisory_unlock(727001)")
 
 
 @app.get("/api/health")
@@ -670,7 +803,7 @@ def health():
 
 @app.after_request
 def add_no_cache_headers(response):
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers.setdefault("Cache-Control", "no-cache, no-store, must-revalidate")
     return response
 
 
@@ -806,7 +939,7 @@ def create_coupon():
             "VALUES (?, ?, ?, ?, 1, ?)",
             (code, discount_type, discount_value, max_uses, datetime.now(timezone.utc).isoformat()),
         )
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         return jsonify({"success": False, "error": "มีโค้ดนี้อยู่แล้ว"}), 400
     db.commit()
     return jsonify({"success": True, "id": cursor.lastrowid}), 201
@@ -1069,6 +1202,32 @@ def admin_check():
 
 # ============ IMAGE UPLOAD ============
 
+_IMAGE_MIME = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp", "gif": "image/gif"}
+MAX_IMAGE_SIDE = 1600
+
+
+def _shrink_image(raw, ext):
+    """Downscale big phone photos so uploads stay small (page speed, and the
+    free Postgres tier has a small storage cap). Returns (bytes, ext). GIFs are
+    left alone to keep animation; on any problem the original is kept."""
+    if ext == "gif":
+        return raw, ext
+    try:
+        import io
+        from PIL import Image, ImageOps
+
+        img = ImageOps.exif_transpose(Image.open(io.BytesIO(raw)))
+        img.thumbnail((MAX_IMAGE_SIDE, MAX_IMAGE_SIDE))
+        out = io.BytesIO()
+        if ext == "png" and img.mode in ("RGBA", "LA", "P"):
+            img.save(out, "PNG", optimize=True)
+            return out.getvalue(), "png"
+        img.convert("RGB").save(out, "JPEG", quality=84, optimize=True)
+        return out.getvalue(), "jpg"
+    except Exception:  # noqa: BLE001 - keep the original file rather than fail the upload
+        return raw, ext
+
+
 @app.post("/api/upload")
 @require_admin
 def upload_image():
@@ -1080,15 +1239,33 @@ def upload_image():
     if ext not in ALLOWED_IMAGE_EXTENSIONS:
         return jsonify({"success": False, "error": "รองรับเฉพาะไฟล์ jpg, jpeg, png, webp, gif"}), 400
 
+    data, ext = _shrink_image(file.read(), ext)
     filename = secure_filename(f"{uuid.uuid4().hex}.{ext}")
-    file.save(os.path.join(UPLOADS_DIR, filename))
-    url = f"{request.host_url.rstrip('/')}/uploads/{filename}"
-    return jsonify({"success": True, "url": url}), 201
+    if IS_PG:
+        db = get_db()
+        db.execute(
+            "INSERT INTO uploaded_images (filename, content_type, data, created_at) VALUES (?, ?, ?, ?)",
+            (filename, _IMAGE_MIME[ext], psycopg2.Binary(data), datetime.now(timezone.utc).isoformat()),
+        )
+        db.commit()
+    else:
+        with open(os.path.join(UPLOADS_DIR, filename), "wb") as f:
+            f.write(data)
+    return jsonify({"success": True, "url": f"/uploads/{filename}"}), 201
 
 
 @app.get("/uploads/<path:filename>")
 def serve_upload(filename):
-    return send_from_directory(UPLOADS_DIR, filename)
+    if not IS_PG:
+        return send_from_directory(UPLOADS_DIR, filename)
+    row = get_db().execute(
+        "SELECT content_type, data FROM uploaded_images WHERE filename = ?", (filename,)
+    ).fetchone()
+    if not row:
+        return jsonify({"success": False, "error": "ไม่พบไฟล์"}), 404
+    response = Response(bytes(row["data"]), mimetype=row["content_type"])
+    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
 
 
 # ============ STORIES ============
