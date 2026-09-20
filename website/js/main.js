@@ -787,9 +787,9 @@ var Modal = (function () {
 
   var TYPE_LABELS = {
     tour: 'ทัวร์', guide: 'ไกด์ชุมชน', restaurant: 'ร้านอาหาร',
-    massage: 'นวดไทย', driver: 'บริการรถรับส่ง'
+    massage: 'นวดไทย', driver: 'บริการรถรับส่ง', accommodation: 'ที่พัก'
   };
-  var TYPE_ORDER = ['tour', 'guide', 'restaurant', 'massage', 'driver'];
+  var TYPE_ORDER = ['tour', 'accommodation', 'guide', 'restaurant', 'massage', 'driver'];
   var allServices = [];
   var activeTag = 'all';
 
@@ -807,7 +807,7 @@ var Modal = (function () {
 
   function fieldsFor(s) {
     var fields = [];
-    if (s.service_type === 'tour') {
+    if (s.service_type === 'tour' || s.service_type === 'accommodation') {
       if (s.schedule_text) fields.push({ label: 'กำหนดการ / เวลา', value: s.schedule_text });
       if (s.includes_text) fields.push({ label: 'รวม/ไม่รวม/เงื่อนไข', value: s.includes_text });
     }

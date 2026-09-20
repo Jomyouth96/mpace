@@ -902,14 +902,15 @@
   // ============ SERVICES ============
   var SERVICE_TYPE_LABELS = {
     tour: 'ทัวร์', guide: 'ไกด์ชุมชน', restaurant: 'ร้านอาหาร',
-    massage: 'นวดไทย', driver: 'บริการรถรับส่ง'
+    massage: 'นวดไทย', driver: 'บริการรถรับส่ง', accommodation: 'ที่พัก'
   };
   var SERVICE_TYPE_FIELDS = {
     tour: ['price', 'schedule', 'includes'],
     guide: ['languages', 'license'],
     restaurant: ['awards'],
     massage: ['awards', 'license'],
-    driver: ['awards']
+    driver: ['awards'],
+    accommodation: ['price', 'schedule', 'includes']
   };
 
   var serviceIdField = document.getElementById('service-id');

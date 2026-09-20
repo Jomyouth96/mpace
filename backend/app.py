@@ -258,7 +258,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS services (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 service_type TEXT NOT NULL CHECK (service_type IN
-                    ('tour', 'guide', 'restaurant', 'massage', 'driver')),
+                    ('tour', 'guide', 'restaurant', 'massage', 'driver', 'accommodation')),
                 name TEXT NOT NULL,
                 description TEXT NOT NULL,
                 images TEXT NOT NULL DEFAULT '[]',
@@ -442,6 +442,49 @@ def init_db():
             db.execute("ALTER TABLE services ADD COLUMN description_en TEXT")
             db.execute("ALTER TABLE services ADD COLUMN name_zh TEXT")
             db.execute("ALTER TABLE services ADD COLUMN description_zh TEXT")
+            db.commit()
+
+        # service_type's CHECK constraint used to omit 'accommodation'. SQLite
+        # can't alter a CHECK in place, so rebuild the table if an older one
+        # is found (all columns above are present by this point).
+        services_sql = db.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'services'"
+        ).fetchone()[0]
+        if "'accommodation'" not in services_sql:
+            db.executescript(
+                """
+                CREATE TABLE services_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    service_type TEXT NOT NULL CHECK (service_type IN
+                        ('tour', 'guide', 'restaurant', 'massage', 'driver', 'accommodation')),
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    images TEXT NOT NULL DEFAULT '[]',
+                    price_text TEXT,
+                    schedule_text TEXT,
+                    includes_text TEXT,
+                    languages TEXT,
+                    license_no TEXT,
+                    awards TEXT,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    tags TEXT NOT NULL DEFAULT '[]',
+                    name_en TEXT,
+                    description_en TEXT,
+                    name_zh TEXT,
+                    description_zh TEXT
+                );
+                INSERT INTO services_new (id, service_type, name, description, images, price_text,
+                    schedule_text, includes_text, languages, license_no, awards, sort_order, created_at,
+                    tags, name_en, description_en, name_zh, description_zh)
+                SELECT id, service_type, name, description, images, price_text,
+                    schedule_text, includes_text, languages, license_no, awards, sort_order, created_at,
+                    tags, name_en, description_en, name_zh, description_zh
+                FROM services;
+                DROP TABLE services;
+                ALTER TABLE services_new RENAME TO services;
+                """
+            )
             db.commit()
 
         # Migrate calendar_months from the old one-tradition/one-activity
@@ -1206,9 +1249,9 @@ def delete_product(product_id):
     return jsonify({"success": True})
 
 
-# ============ SERVICES (tour / guide / restaurant / massage / driver) ============
+# ============ SERVICES (tour / guide / restaurant / massage / driver / accommodation) ============
 
-SERVICE_TYPES = ("tour", "guide", "restaurant", "massage", "driver")
+SERVICE_TYPES = ("tour", "guide", "restaurant", "massage", "driver", "accommodation")
 
 
 @app.get("/api/services")
