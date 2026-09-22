@@ -295,6 +295,7 @@
             <option value="massage">นวดไทย</option>
             <option value="driver">บริการรถรับส่ง</option>
             <option value="accommodation">ที่พัก</option>
+            <option value="other">อื่นๆ</option>
           </select>
         </div>
         <div class="form-field">
@@ -508,6 +509,10 @@
         <div class="form-field">
           <label for="coupon-max-uses">จำนวนครั้งที่ใช้ได้ (เว้นว่าง = ไม่จำกัด)</label>
           <input id="coupon-max-uses" type="number" min="1" step="1" placeholder="เช่น 50">
+        </div>
+        <div class="form-field">
+          <label for="coupon-expires">วันหมดอายุ (เว้นว่าง = ไม่มีวันหมดอายุ)</label>
+          <input id="coupon-expires" type="date">
         </div>
         <div class="form-field" id="coupon-active-field" style="display:none;">
           <label style="display:flex; align-items:center; gap:8px;">

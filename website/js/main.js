@@ -255,10 +255,12 @@ var Modal = (function () {
 
   var filterButtons = document.querySelectorAll('#map-filters .pill-btn');
 
-  var SERVICE_TYPE_LABELS = {
-    tour: 'ทัวร์', guide: 'ไกด์ชุมชน', restaurant: 'ร้านอาหาร',
-    massage: 'นวดไทย', driver: 'บริการรถรับส่ง', accommodation: 'ที่พัก'
+  var SERVICE_TYPE_LABEL_KEYS = {
+    tour: 'svc_type_tour', guide: 'svc_type_guide', restaurant: 'svc_type_restaurant',
+    massage: 'svc_type_massage', driver: 'svc_type_driver', accommodation: 'svc_type_accommodation',
+    other: 'svc_type_other'
   };
+  function serviceTypeLabel(type) { return window.t ? window.t(SERVICE_TYPE_LABEL_KEYS[type]) : type; }
 
   var CATEGORY_COLORS = { nature: '#D9A441', culture: '#2E6B47', product: '#3B7DD8', service: '#9B51E0' };
 
@@ -293,7 +295,7 @@ var Modal = (function () {
       Modal.open({ title: l.name, images: item.images, desc: l.description, priceText: item.price_text });
     } else {
       var fields = [];
-      if (item.service_type === 'tour' || item.service_type === 'accommodation') {
+      if (item.service_type === 'tour' || item.service_type === 'accommodation' || item.service_type === 'other') {
         if (item.schedule_text) fields.push({ label: 'กำหนดการ / เวลา', value: item.schedule_text });
         if (item.includes_text) fields.push({ label: 'รวม/ไม่รวม/เงื่อนไข', value: item.includes_text });
       }
@@ -305,7 +307,7 @@ var Modal = (function () {
       if (item.awards) fields.push({ label: 'รางวัล', value: item.awards });
       Modal.open({
         title: l.name,
-        tag: SERVICE_TYPE_LABELS[item.service_type],
+        tag: serviceTypeLabel(item.service_type),
         images: item.images,
         desc: l.description,
         fields: fields,
@@ -877,15 +879,15 @@ var Modal = (function () {
   var wrap = document.getElementById('service-groups');
   if (!wrap) return;
   var searchInput = document.getElementById('service-search');
-  var tagFiltersEl = document.getElementById('service-tag-filters');
 
-  var TYPE_LABELS = {
-    tour: 'ทัวร์', guide: 'ไกด์ชุมชน', restaurant: 'ร้านอาหาร',
-    massage: 'นวดไทย', driver: 'บริการรถรับส่ง', accommodation: 'ที่พัก'
+  var TYPE_LABEL_KEYS = {
+    tour: 'svc_type_tour', guide: 'svc_type_guide', restaurant: 'svc_type_restaurant',
+    massage: 'svc_type_massage', driver: 'svc_type_driver', accommodation: 'svc_type_accommodation',
+    other: 'svc_type_other'
   };
-  var TYPE_ORDER = ['tour', 'accommodation', 'guide', 'restaurant', 'massage', 'driver'];
+  function typeLabel(type) { return window.t ? window.t(TYPE_LABEL_KEYS[type]) : type; }
+  var TYPE_ORDER = ['tour', 'accommodation', 'guide', 'restaurant', 'massage', 'driver', 'other'];
   var allServices = [];
-  var activeTag = 'all';
 
   // Thai fields are required, so Thai always shows everything. EN/ZH only
   // show services where that language's name + description were filled in.
@@ -901,7 +903,7 @@ var Modal = (function () {
 
   function fieldsFor(s) {
     var fields = [];
-    if (s.service_type === 'tour' || s.service_type === 'accommodation') {
+    if (s.service_type === 'tour' || s.service_type === 'accommodation' || s.service_type === 'other') {
       if (s.schedule_text) fields.push({ label: 'กำหนดการ / เวลา', value: s.schedule_text });
       if (s.includes_text) fields.push({ label: 'รวม/ไม่รวม/เงื่อนไข', value: s.includes_text });
     }
@@ -941,33 +943,13 @@ var Modal = (function () {
     );
   }
 
-  function renderTagFilters() {
-    var tagSet = {};
-    allServices.forEach(function (s) { (s.tags || []).forEach(function (t) { tagSet[t] = true; }); });
-    var tags = Object.keys(tagSet);
-    if (!tags.length) { tagFiltersEl.style.display = 'none'; return; }
-    tagFiltersEl.style.display = 'flex';
-    tagFiltersEl.innerHTML = '<button type="button" class="pill-btn' + (activeTag === 'all' ? ' active' : '') + '" data-tag="all">' + (window.t ? window.t('tag_all') : 'ทั้งหมด') + '</button>' +
-      tags.map(function (t) {
-        return '<button type="button" class="pill-btn' + (activeTag === t ? ' active' : '') + '" data-tag="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>';
-      }).join('');
-    tagFiltersEl.querySelectorAll('.pill-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        activeTag = btn.getAttribute('data-tag');
-        render();
-      });
-    });
-  }
-
   function render() {
     var q = (searchInput.value || '').trim().toLowerCase();
     var visible = allServices
       .map(function (s) { return { s: s, l: localize(s) }; })
       .filter(function (x) { return x.l; })
       .filter(function (x) {
-        var matchesTag = activeTag === 'all' || (x.s.tags || []).indexOf(activeTag) !== -1;
-        var matchesQuery = !q || x.l.name.toLowerCase().indexOf(q) !== -1 || (x.s.tags || []).join(' ').toLowerCase().indexOf(q) !== -1;
-        return matchesTag && matchesQuery;
+        return !q || x.l.name.toLowerCase().indexOf(q) !== -1 || (x.s.tags || []).join(' ').toLowerCase().indexOf(q) !== -1;
       });
 
     if (!visible.length) {
@@ -978,7 +960,7 @@ var Modal = (function () {
     TYPE_ORDER.forEach(function (type) {
       var items = visible.filter(function (x) { return x.s.service_type === type; });
       if (!items.length) return;
-      html += '<div class="service-type-head"><h4>' + TYPE_LABELS[type] + '</h4></div>';
+      html += '<div class="service-type-head"><h4>' + escapeHtml(typeLabel(type)) + '</h4></div>';
       html += '<div class="product-grid">' + items.map(function (x) { return renderServiceCard(x.s, x.l); }).join('') + '</div>';
     });
     wrap.innerHTML = html;
@@ -990,7 +972,7 @@ var Modal = (function () {
           var s = x.s;
           Modal.open({
             title: x.l.name,
-            tag: TYPE_LABELS[s.service_type],
+            tag: typeLabel(s.service_type),
             images: s.images,
             desc: x.l.description,
             fields: fieldsFor(s),
@@ -1010,13 +992,12 @@ var Modal = (function () {
   }
 
   searchInput.addEventListener('input', render);
-  window.addEventListener('langchange', function () { renderTagFilters(); render(); });
+  window.addEventListener('langchange', render);
 
   fetch(API_BASE + '/api/services')
     .then(function (res) { return res.json(); })
     .then(function (services) {
       allServices = services;
-      renderTagFilters();
       render();
     })
     .catch(function () {

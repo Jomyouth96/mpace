@@ -913,7 +913,7 @@
   // ============ SERVICES ============
   var SERVICE_TYPE_LABELS = {
     tour: 'ทัวร์', guide: 'ไกด์ชุมชน', restaurant: 'ร้านอาหาร',
-    massage: 'นวดไทย', driver: 'บริการรถรับส่ง', accommodation: 'ที่พัก'
+    massage: 'นวดไทย', driver: 'บริการรถรับส่ง', accommodation: 'ที่พัก', other: 'อื่นๆ'
   };
   var SERVICE_TYPE_FIELDS = {
     tour: ['price', 'schedule', 'includes'],
@@ -921,6 +921,7 @@
     restaurant: ['awards'],
     massage: ['awards', 'license'],
     driver: ['awards'],
+    other: ['price', 'schedule', 'includes', 'awards'],
     accommodation: ['price', 'schedule', 'includes']
   };
 
@@ -1314,7 +1315,10 @@
   });
 
   // ============ ORDERS ============
-  var ORDER_STATUS_LABELS = { new: 'ใหม่', confirmed: 'ยืนยันแล้ว', shipped: 'จัดส่งแล้ว', done: 'เสร็จสิ้น' };
+  var ORDER_STATUS_LABELS = {
+    new: 'ใหม่', confirmed: 'ยืนยันแล้ว', shipped: 'จัดส่งแล้ว', done: 'เสร็จสิ้น',
+    cancelled: 'ยกเลิก', exchanged: 'เปลี่ยนสินค้า'
+  };
   var ordersList = document.getElementById('orders-list');
   var ordersSearch = document.getElementById('orders-search');
   var ordersCache = [];
@@ -1352,6 +1356,7 @@
           (o.coupon_code ? '<p style="margin-top:4px; color:var(--green-700);">คูปอง: ' + escapeHtml(o.coupon_code) + ' (ลด ฿' + o.discount_amount + ')</p>' : '') +
           '<p style="margin-top:8px;"><strong>ยอดสินค้า: ฿' + o.subtotal + (o.discount_amount ? ' − ส่วนลด ฿' + o.discount_amount : '') +
             ' + ค่าส่ง ' + (hasShipping ? '฿' + o.shipping_cost : 'ยังไม่ระบุ') + ' = รวม ฿' + o.total + '</strong></p>' +
+          (o.completed_at ? '<p style="margin-top:4px; color:var(--text-muted); font-size:12.5px;">เสร็จสิ้นเมื่อ: ' + escapeHtml(o.completed_at.slice(0, 16).replace('T', ' ')) + '</p>' : '') +
         '</div>';
       var shippingRow = document.createElement('div');
       shippingRow.style.display = 'flex';
@@ -1383,7 +1388,7 @@
       actions.style.display = 'flex';
       actions.style.gap = '8px';
       actions.style.marginTop = '10px';
-      ['new', 'confirmed', 'shipped', 'done'].forEach(function (status) {
+      ['new', 'confirmed', 'shipped', 'done', 'exchanged', 'cancelled'].forEach(function (status) {
         var btn = document.createElement('button');
         btn.className = 'btn-outline';
         btn.style.fontSize = '12.5px';
@@ -1441,6 +1446,7 @@
           (b.preferred_date ? '<p style="margin-top:8px;">วันที่ต้องการ: ' + escapeHtml(b.preferred_date) + '</p>' : '') +
           (b.party_size ? '<p style="margin-top:4px;">จำนวนคน: ' + escapeHtml(b.party_size) + '</p>' : '') +
           (b.notes ? '<p style="margin-top:4px; color:var(--text-muted);">หมายเหตุ: ' + escapeHtml(b.notes) + '</p>' : '') +
+          (b.completed_at ? '<p style="margin-top:4px; color:var(--text-muted); font-size:12.5px;">เสร็จสิ้นเมื่อ: ' + escapeHtml(b.completed_at.slice(0, 16).replace('T', ' ')) + '</p>' : '') +
         '</div>';
       var actions = document.createElement('div');
       actions.style.display = 'flex';
@@ -1480,6 +1486,7 @@
   var couponDiscountType = document.getElementById('coupon-discount-type');
   var couponDiscountValue = document.getElementById('coupon-discount-value');
   var couponMaxUses = document.getElementById('coupon-max-uses');
+  var couponExpires = document.getElementById('coupon-expires');
   var couponActiveField = document.getElementById('coupon-active-field');
   var couponActive = document.getElementById('coupon-active');
   var couponFormTitle = document.getElementById('coupon-form-title');
@@ -1497,6 +1504,7 @@
     couponDiscountType.value = 'percent';
     couponDiscountValue.value = '';
     couponMaxUses.value = '';
+    couponExpires.value = '';
     couponActive.checked = true;
     couponActiveField.style.display = 'none';
     couponFormTitle.textContent = 'เพิ่มคูปองส่วนลดใหม่';
@@ -1528,7 +1536,8 @@
         '<div class="admin-item-body">' +
           '<h5>' + escapeHtml(c.code) + (c.active ? '' : ' <span class="answered-badge">ปิดใช้งาน</span>') + '</h5>' +
           '<div class="admin-item-meta">ส่วนลด ' + c.discount_value + COUPON_TYPE_LABELS[c.discount_type] +
-            ' · ใช้ไปแล้ว ' + c.used_count + (c.max_uses ? ' / ' + c.max_uses : ' ครั้ง (ไม่จำกัด)') + '</div>' +
+            ' · ใช้ไปแล้ว ' + c.used_count + (c.max_uses ? ' / ' + c.max_uses : ' ครั้ง (ไม่จำกัด)') +
+            (c.expires_at ? ' · หมดอายุ ' + escapeHtml(c.expires_at) : '') + '</div>' +
         '</div>' +
         '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
       item.querySelector('.edit-btn').addEventListener('click', function () {
@@ -1538,6 +1547,7 @@
         couponDiscountType.value = c.discount_type;
         couponDiscountValue.value = c.discount_value;
         couponMaxUses.value = c.max_uses || '';
+        couponExpires.value = c.expires_at || '';
         couponActive.checked = !!c.active;
         couponActiveField.style.display = 'block';
         couponFormTitle.textContent = 'แก้ไขคูปอง "' + c.code + '"';
@@ -1572,6 +1582,7 @@
       discount_type: couponDiscountType.value,
       discount_value: discountValue,
       max_uses: couponMaxUses.value,
+      expires_at: couponExpires.value,
       active: id ? couponActive.checked : true
     };
     var request = id

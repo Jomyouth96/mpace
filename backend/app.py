@@ -318,6 +318,7 @@ def init_db():
                 max_uses INTEGER,
                 used_count INTEGER NOT NULL DEFAULT 0,
                 active INTEGER NOT NULL DEFAULT 1,
+                expires_at TEXT,
                 created_at TEXT NOT NULL
             )
             """
@@ -337,6 +338,7 @@ def init_db():
                 shipping_cost REAL,
                 total REAL NOT NULL DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'new',
+                completed_at TEXT,
                 created_at TEXT NOT NULL
             )
             """
@@ -353,6 +355,7 @@ def init_db():
                 party_size TEXT,
                 notes TEXT,
                 status TEXT NOT NULL DEFAULT 'new',
+                completed_at TEXT,
                 created_at TEXT NOT NULL
             )
             """
@@ -392,7 +395,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS services (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 service_type TEXT NOT NULL CHECK (service_type IN
-                    ('tour', 'guide', 'restaurant', 'massage', 'driver', 'accommodation')),
+                    ('tour', 'guide', 'restaurant', 'massage', 'driver', 'accommodation', 'other')),
                 name TEXT NOT NULL,
                 description TEXT NOT NULL,
                 images TEXT NOT NULL DEFAULT '[]',
@@ -485,6 +488,25 @@ def init_db():
         if "coupon_code" not in existing_order_cols:
             db.execute("ALTER TABLE orders ADD COLUMN coupon_code TEXT")
             db.execute("ALTER TABLE orders ADD COLUMN discount_amount REAL NOT NULL DEFAULT 0")
+            db.commit()
+
+        # Add a completed_at timestamp to orders and bookings, and 'cancelled'
+        # / 'exchanged' order statuses, if reusing a database from before
+        # these existed.
+        existing_order_cols_b = _table_columns(db, "orders")
+        if "completed_at" not in existing_order_cols_b:
+            db.execute("ALTER TABLE orders ADD COLUMN completed_at TEXT")
+            db.commit()
+        existing_booking_cols = _table_columns(db, "bookings")
+        if "completed_at" not in existing_booking_cols:
+            db.execute("ALTER TABLE bookings ADD COLUMN completed_at TEXT")
+            db.commit()
+
+        # Add an optional expiry date to coupons, if reusing a database from
+        # before that existed.
+        existing_coupon_cols = _table_columns(db, "coupons")
+        if "expires_at" not in existing_coupon_cols:
+            db.execute("ALTER TABLE coupons ADD COLUMN expires_at TEXT")
             db.commit()
 
         # shipping_cost used to be NOT NULL DEFAULT 0 (one flat rate for every
@@ -639,6 +661,51 @@ def init_db():
             db.execute("ALTER TABLE services ADD COLUMN map_url TEXT")
             db.execute("ALTER TABLE services ADD COLUMN lat REAL")
             db.execute("ALTER TABLE services ADD COLUMN lng REAL")
+            db.commit()
+
+        # service_type's CHECK constraint used to omit 'other'. Same
+        # SQLite rebuild-in-place pattern as the 'accommodation' migration.
+        services_sql2 = "'other'" if IS_PG else db.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'services'"
+        ).fetchone()[0]
+        if "'other'" not in services_sql2:
+            db.executescript(
+                """
+                CREATE TABLE services_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    service_type TEXT NOT NULL CHECK (service_type IN
+                        ('tour', 'guide', 'restaurant', 'massage', 'driver', 'accommodation', 'other')),
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    images TEXT NOT NULL DEFAULT '[]',
+                    price_text TEXT,
+                    schedule_text TEXT,
+                    includes_text TEXT,
+                    languages TEXT,
+                    license_no TEXT,
+                    awards TEXT,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    tags TEXT NOT NULL DEFAULT '[]',
+                    name_en TEXT,
+                    description_en TEXT,
+                    name_zh TEXT,
+                    description_zh TEXT,
+                    map_url TEXT,
+                    lat REAL,
+                    lng REAL
+                );
+                INSERT INTO services_new (id, service_type, name, description, images, price_text,
+                    schedule_text, includes_text, languages, license_no, awards, sort_order, created_at,
+                    tags, name_en, description_en, name_zh, description_zh, map_url, lat, lng)
+                SELECT id, service_type, name, description, images, price_text,
+                    schedule_text, includes_text, languages, license_no, awards, sort_order, created_at,
+                    tags, name_en, description_en, name_zh, description_zh, map_url, lat, lng
+                FROM services;
+                DROP TABLE services;
+                ALTER TABLE services_new RENAME TO services;
+                """
+            )
             db.commit()
 
         # Migrate calendar_months from the old one-tradition/one-activity
@@ -904,6 +971,8 @@ def _apply_coupon(db, code, subtotal):
         return None, 0.0, "โค้ดส่วนลดไม่ถูกต้องหรือหมดอายุแล้ว"
     if row["max_uses"] is not None and row["used_count"] >= row["max_uses"]:
         return None, 0.0, "โค้ดส่วนลดนี้ถูกใช้ครบจำนวนแล้ว"
+    if row["expires_at"] and datetime.now(timezone.utc).date().isoformat() > row["expires_at"]:
+        return None, 0.0, "โค้ดส่วนลดนี้หมดอายุแล้ว"
     if row["discount_type"] == "percent":
         discount = subtotal * row["discount_value"] / 100.0
     else:
@@ -943,6 +1012,7 @@ def create_coupon():
         max_uses = int(max_uses) if max_uses not in (None, "") else None
     except (TypeError, ValueError):
         max_uses = None
+    expires_at = (payload.get("expires_at") or "").strip() or None
 
     if not code or discount_type not in ("percent", "fixed") or discount_value is None:
         return jsonify({"success": False, "error": "กรุณากรอกโค้ด ประเภทส่วนลด และมูลค่าส่วนลดให้ครบถ้วน"}), 400
@@ -950,9 +1020,9 @@ def create_coupon():
     db = get_db()
     try:
         cursor = db.execute(
-            "INSERT INTO coupons (code, discount_type, discount_value, max_uses, active, created_at) "
-            "VALUES (?, ?, ?, ?, 1, ?)",
-            (code, discount_type, discount_value, max_uses, datetime.now(timezone.utc).isoformat()),
+            "INSERT INTO coupons (code, discount_type, discount_value, max_uses, active, expires_at, created_at) "
+            "VALUES (?, ?, ?, ?, 1, ?, ?)",
+            (code, discount_type, discount_value, max_uses, expires_at, datetime.now(timezone.utc).isoformat()),
         )
     except IntegrityError:
         return jsonify({"success": False, "error": "มีโค้ดนี้อยู่แล้ว"}), 400
@@ -975,14 +1045,16 @@ def update_coupon(coupon_id):
     except (TypeError, ValueError):
         max_uses = None
     active = 1 if payload.get("active") else 0
+    expires_at = (payload.get("expires_at") or "").strip() or None
 
     if discount_type not in ("percent", "fixed") or discount_value is None:
         return jsonify({"success": False, "error": "กรุณากรอกประเภทส่วนลดและมูลค่าส่วนลดให้ครบถ้วน"}), 400
 
     db = get_db()
     result = db.execute(
-        "UPDATE coupons SET discount_type = ?, discount_value = ?, max_uses = ?, active = ? WHERE id = ?",
-        (discount_type, discount_value, max_uses, active, coupon_id),
+        "UPDATE coupons SET discount_type = ?, discount_value = ?, max_uses = ?, active = ?, expires_at = ? "
+        "WHERE id = ?",
+        (discount_type, discount_value, max_uses, active, expires_at, coupon_id),
     )
     db.commit()
     if result.rowcount == 0:
@@ -1097,10 +1169,12 @@ def update_order_status(order_id):
     fields, values = [], []
     if "status" in payload:
         status = (payload.get("status") or "").strip()
-        if status not in ("new", "confirmed", "shipped", "done"):
+        if status not in ("new", "confirmed", "shipped", "done", "cancelled", "exchanged"):
             return jsonify({"success": False, "error": "สถานะไม่ถูกต้อง"}), 400
         fields.append("status = ?")
         values.append(status)
+        fields.append("completed_at = ?")
+        values.append(datetime.now(timezone.utc).isoformat() if status == "done" else None)
     if "shipping_cost" in payload:
         try:
             shipping_cost = float(payload.get("shipping_cost"))
@@ -1175,8 +1249,11 @@ def update_booking_status(booking_id):
     if status not in ("new", "confirmed", "done", "cancelled"):
         return jsonify({"success": False, "error": "สถานะไม่ถูกต้อง"}), 400
 
+    completed_at = datetime.now(timezone.utc).isoformat() if status == "done" else None
     db = get_db()
-    result = db.execute("UPDATE bookings SET status = ? WHERE id = ?", (status, booking_id))
+    result = db.execute(
+        "UPDATE bookings SET status = ?, completed_at = ? WHERE id = ?", (status, completed_at, booking_id)
+    )
     db.commit()
     if result.rowcount == 0:
         return jsonify({"success": False, "error": "ไม่พบการจองนี้"}), 404
@@ -1450,7 +1527,7 @@ def delete_product(product_id):
 
 # ============ SERVICES (tour / guide / restaurant / massage / driver / accommodation) ============
 
-SERVICE_TYPES = ("tour", "guide", "restaurant", "massage", "driver", "accommodation")
+SERVICE_TYPES = ("tour", "guide", "restaurant", "massage", "driver", "accommodation", "other")
 
 
 @app.get("/api/services")
