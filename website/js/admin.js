@@ -1386,6 +1386,7 @@
       item.appendChild(shippingRow);
       var actions = document.createElement('div');
       actions.style.display = 'flex';
+      actions.style.flexWrap = 'wrap';
       actions.style.gap = '8px';
       actions.style.marginTop = '10px';
       ['new', 'confirmed', 'shipped', 'done', 'exchanged', 'cancelled'].forEach(function (status) {
@@ -1401,6 +1402,18 @@
         });
         actions.appendChild(btn);
       });
+      var orderDeleteBtn = document.createElement('button');
+      orderDeleteBtn.className = 'btn-outline';
+      orderDeleteBtn.style.fontSize = '12.5px';
+      orderDeleteBtn.style.padding = '6px 12px';
+      orderDeleteBtn.style.color = '#B23A3A';
+      orderDeleteBtn.style.borderColor = '#EFC9C9';
+      orderDeleteBtn.textContent = 'ลบ';
+      orderDeleteBtn.addEventListener('click', function () {
+        if (!confirm('ลบคำสั่งซื้อของ "' + o.customer_name + '" ใช่หรือไม่? ลบแล้วกู้คืนไม่ได้')) return;
+        api('/api/orders/' + o.id, { method: 'DELETE' }).then(function () { loadOrders(); });
+      });
+      actions.appendChild(orderDeleteBtn);
       item.appendChild(actions);
       ordersList.appendChild(item);
     });
@@ -1450,6 +1463,7 @@
         '</div>';
       var actions = document.createElement('div');
       actions.style.display = 'flex';
+      actions.style.flexWrap = 'wrap';
       actions.style.gap = '8px';
       actions.style.marginTop = '10px';
       ['new', 'confirmed', 'done', 'cancelled'].forEach(function (status) {
@@ -1465,6 +1479,18 @@
         });
         actions.appendChild(btn);
       });
+      var bookingDeleteBtn = document.createElement('button');
+      bookingDeleteBtn.className = 'btn-outline';
+      bookingDeleteBtn.style.fontSize = '12.5px';
+      bookingDeleteBtn.style.padding = '6px 12px';
+      bookingDeleteBtn.style.color = '#B23A3A';
+      bookingDeleteBtn.style.borderColor = '#EFC9C9';
+      bookingDeleteBtn.textContent = 'ลบ';
+      bookingDeleteBtn.addEventListener('click', function () {
+        if (!confirm('ลบการจองของ "' + b.customer_name + '" ใช่หรือไม่? ลบแล้วกู้คืนไม่ได้')) return;
+        api('/api/bookings/' + b.id, { method: 'DELETE' }).then(function () { loadBookings(); });
+      });
+      actions.appendChild(bookingDeleteBtn);
       item.appendChild(actions);
       bookingsList.appendChild(item);
     });

@@ -1195,6 +1195,17 @@ def update_order_status(order_id):
     return jsonify({"success": True})
 
 
+@app.delete("/api/orders/<int:order_id>")
+@require_admin
+def delete_order(order_id):
+    db = get_db()
+    result = db.execute("DELETE FROM orders WHERE id = ?", (order_id,))
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบคำสั่งซื้อนี้"}), 404
+    return jsonify({"success": True})
+
+
 # ============ BOOKINGS (service reservations) ============
 
 @app.post("/api/bookings")
@@ -1254,6 +1265,17 @@ def update_booking_status(booking_id):
     result = db.execute(
         "UPDATE bookings SET status = ?, completed_at = ? WHERE id = ?", (status, completed_at, booking_id)
     )
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({"success": False, "error": "ไม่พบการจองนี้"}), 404
+    return jsonify({"success": True})
+
+
+@app.delete("/api/bookings/<int:booking_id>")
+@require_admin
+def delete_booking(booking_id):
+    db = get_db()
+    result = db.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
     db.commit()
     if result.rowcount == 0:
         return jsonify({"success": False, "error": "ไม่พบการจองนี้"}), 404
