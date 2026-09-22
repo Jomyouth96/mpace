@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>แหล่งท่องเที่ยว — วิสาหกิจชุมชนเกษตรเชิงท่องเที่ยวตำบลแม่หอพระ</title>
-<meta name="description" content="แหล่งท่องเที่ยวธรรมชาติและวัฒนธรรมในตำบลแม่หอพระ พร้อมแหล่งท่องเที่ยวใกล้เคียง">
+<title>แผนที่ชุมชน — วิสาหกิจชุมชนเกษตรเชิงท่องเที่ยวตำบลแม่หอพระ</title>
+<meta name="description" content="แผนที่แหล่งท่องเที่ยว สินค้า และบริการทั้งหมดของตำบลแม่หอพระในที่เดียว">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -24,9 +25,9 @@
     <nav class="nav-links">
       <a class="navlink" href="index.html" data-i18n="nav_home">หน้าแรก</a>
       <a class="navlink" href="about.html" data-i18n="nav_about">เกี่ยวกับเรา</a>
-      <a class="navlink navlink-active" href="attractions.html" data-i18n="nav_attractions">แหล่งท่องเที่ยว</a>
+      <a class="navlink" href="attractions.html" data-i18n="nav_attractions">แหล่งท่องเที่ยว</a>
       <a class="navlink" href="calendar.html" data-i18n="nav_calendar">ปฏิทินประสบการณ์</a>
-      <a class="navlink" href="map.html" data-i18n="nav_map">แผนที่ชุมชน</a>
+      <a class="navlink navlink-active" href="map.html" data-i18n="nav_map">แผนที่ชุมชน</a>
       <a class="navlink" href="shop.html" data-i18n="nav_shop">สินค้าและบริการในชุมชน</a>
       <a class="navlink" href="stories.html" data-i18n="nav_stories">เรื่องราว</a>
       <a class="navlink" href="contact.html" data-i18n="nav_contact">ติดต่อเรา</a>
@@ -42,59 +43,32 @@
   </div>
 </header>
 
-<!-- ============ ATTRACTIONS ============ -->
-<section id="attractions" class="section">
+<!-- ============ COMMUNITY MAP ============ -->
+<section id="map-page" class="section">
   <div class="section-head">
-    <span class="section-kicker">EXPLORE</span>
-    <h2 data-i18n="attractions_title">แหล่งท่องเที่ยวแม่หอพระ</h2>
-    <p data-i18n="attractions_desc">รวมแหล่งท่องเที่ยวทุกที่ในพื้นที่ ทั้งธรรมชาติ วัด และตำนานท้องถิ่นที่รอให้คุณมาสัมผัส ในระยะไม่ไกลจากตัวชุมชน</p>
+    <span class="section-kicker">MAP</span>
+    <h2 data-i18n="map_page_title">แผนที่ชุมชน</h2>
+    <p data-i18n="map_page_desc">รวมพิกัดแหล่งท่องเที่ยว สินค้า และบริการของตำบลแม่หอพระไว้ในแผนที่เดียว — เลื่อนเมาส์ไปที่หมุดเพื่อดูตัวอย่าง คลิกหมุดเพื่อดูข้อมูลเต็ม</p>
   </div>
 
-  <div class="pill-row" id="attraction-filters">
+  <div class="pill-row" id="map-filters">
     <button class="pill-btn active" data-filter="all" data-i18n="filter_all">ทั้งหมด</button>
     <button class="pill-btn" data-filter="nature" data-i18n="filter_nature">แหล่งท่องเที่ยวทางธรรมชาติ</button>
     <button class="pill-btn" data-filter="culture" data-i18n="filter_culture">แหล่งท่องเที่ยวทางวัฒนธรรม</button>
+    <button class="pill-btn" data-filter="product" data-i18n="legend_products">สินค้า</button>
+    <button class="pill-btn" data-filter="service" data-i18n="legend_services">บริการ</button>
   </div>
 
-  <div id="attraction-grid" class="attraction-grid">
-    <p style="color:var(--text-muted); font-size:14px;" data-i18n="loading_attractions">กำลังโหลดแหล่งท่องเที่ยว...</p>
-  </div>
-
-  <div class="card season-card">
-    <div class="season-head">
-      <span class="section-kicker" style="color:#CFE3D3;">SEASONAL PICKS</span>
-      <h3 data-i18n="seasonal_title">แนะนำแหล่งท่องเที่ยวตามฤดูกาล</h3>
-    </div>
-    <div class="season-body">
-      <div class="pill-row" id="season-buttons" style="margin-bottom:0;">
-        <button class="season-btn active" data-season="0">ฤดูร้อน</button>
-        <button class="season-btn" data-season="1">ฤดูฝน</button>
-        <button class="season-btn" data-season="2">ฤดูหนาว</button>
-      </div>
-      <p id="season-desc"></p>
-      <div id="season-picks"></div>
+  <div class="map-wrap map-wrap-full">
+    <div id="community-map"></div>
+    <div class="map-legend">
+      <span class="legend-item"><span class="dot-mini" style="background:var(--gold-500);"></span><span data-i18n="legend_nature">ธรรมชาติ</span></span>
+      <span class="legend-item"><span class="dot-mini" style="background:var(--green-700);"></span><span data-i18n="legend_culture">วัฒนธรรม</span></span>
+      <span class="legend-item"><span class="dot-mini" style="background:#3B7DD8;"></span><span data-i18n="legend_products">สินค้า</span></span>
+      <span class="legend-item"><span class="dot-mini" style="background:#9B51E0;"></span><span data-i18n="legend_services">บริการ</span></span>
     </div>
   </div>
-
-  <!-- ลิงก์ไปหน้าแผนที่ชุมชน -->
-  <a href="map.html" class="card clickable" style="margin-top:40px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:24px 28px;">
-    <div>
-      <span class="section-kicker">MAP</span>
-      <h3 style="font-size:22px; color:var(--green-900); margin-top:4px;" data-i18n="map_link_title">ดูแผนที่ชุมชนแบบเต็ม</h3>
-      <p style="font-size:14.5px; color:var(--text-muted); margin-top:4px;" data-i18n="map_link_desc">รวมพิกัดแหล่งท่องเที่ยว สินค้า และบริการทั้งหมดไว้ในแผนที่เดียว</p>
-    </div>
-    <span class="btn-link" data-i18n="map_link_cta">เปิดแผนที่ →</span>
-  </a>
-
-  <!-- แหล่งท่องเที่ยวใกล้เคียง -->
-  <div class="section-head">
-    <span class="section-kicker">NEARBY</span>
-    <h3 style="font-size:24px; color:var(--green-900);" data-i18n="nearby_title">แหล่งท่องเที่ยวใกล้เคียง</h3>
-    <p style="font-size:14.5px;" data-i18n="nearby_desc">ต่อยอดทริปไปยังแหล่งท่องเที่ยวชื่อดังในอำเภอใกล้เคียง — แม่แตง สันทราย และพร้าว</p>
-  </div>
-  <div id="nearby-grid" class="nearby-grid">
-    <p style="color:var(--text-muted); font-size:14px;" data-i18n="loading_generic">กำลังโหลด...</p>
-  </div>
+  <p style="font-size:12.5px; color:var(--text-muted);" data-i18n="map_pin_note">แสดงเฉพาะรายการที่แอดมินปักหมุดตำแหน่งไว้เท่านั้น</p>
 </section>
 
 <!-- ============ FOOTER ============ -->
@@ -132,6 +106,7 @@
     </div>
   </div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/main.js"></script>
 </body>

@@ -568,6 +568,16 @@ def init_db():
             db.execute("ALTER TABLE products ADD COLUMN description_zh TEXT")
             db.commit()
 
+        # Add optional map pin fields to products, so a product can also show
+        # up on the community map (e.g. where to buy it) if the admin pastes
+        # a Google Maps link — same pattern as attractions.
+        existing_product_cols3 = _table_columns(db, "products")
+        if "map_url" not in existing_product_cols3:
+            db.execute("ALTER TABLE products ADD COLUMN map_url TEXT")
+            db.execute("ALTER TABLE products ADD COLUMN lat REAL")
+            db.execute("ALTER TABLE products ADD COLUMN lng REAL")
+            db.commit()
+
         # Same pattern for services (name + description only — type-specific
         # fields like schedule/includes/languages/license/awards stay Thai).
         existing_service_cols2 = _table_columns(db, "services")
@@ -619,6 +629,16 @@ def init_db():
                 ALTER TABLE services_new RENAME TO services;
                 """
             )
+            db.commit()
+
+        # Add optional map pin fields to services, so a service (e.g. an
+        # accommodation or restaurant) can also show up on the community map
+        # if the admin pastes a Google Maps link — same pattern as attractions.
+        existing_service_cols3 = _table_columns(db, "services")
+        if "map_url" not in existing_service_cols3:
+            db.execute("ALTER TABLE services ADD COLUMN map_url TEXT")
+            db.execute("ALTER TABLE services ADD COLUMN lat REAL")
+            db.execute("ALTER TABLE services ADD COLUMN lng REAL")
             db.commit()
 
         # Migrate calendar_months from the old one-tradition/one-activity
@@ -1353,6 +1373,8 @@ def _parse_product_payload(payload):
         price_amount = float(price_amount) if price_amount not in (None, "") else None
     except (TypeError, ValueError):
         price_amount = None
+    map_url = (payload.get("map_url") or "").strip() or None
+    lat, lng = _extract_lat_lng(map_url)
     return {
         "name": (payload.get("name") or "").strip(),
         "description": (payload.get("description") or "").strip(),
@@ -1361,6 +1383,9 @@ def _parse_product_payload(payload):
         "images": _images_to_db(payload.get("images")),
         "tags": _images_to_db(payload.get("tags")),
         "sort_order": int(payload.get("sort_order") or 0),
+        "map_url": map_url,
+        "lat": lat,
+        "lng": lng,
         "name_en": (payload.get("name_en") or "").strip() or None,
         "description_en": (payload.get("description_en") or "").strip() or None,
         "name_zh": (payload.get("name_zh") or "").strip() or None,
@@ -1378,14 +1403,15 @@ def create_product():
     db = get_db()
     cursor = db.execute(
         "INSERT INTO products (kind, name, description, price_text, price_amount, images, tags, sort_order, "
-        "name_en, description_en, name_zh, description_zh, created_at) "
-        "VALUES ('product', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "map_url, lat, lng, name_en, description_en, name_zh, description_zh, created_at) "
+        "VALUES ('product', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (data["name"], data["description"], data["price_text"], data["price_amount"], data["images"], data["tags"],
-         data["sort_order"], data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
+         data["sort_order"], data["map_url"], data["lat"], data["lng"],
+         data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
          datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
-    return jsonify({"success": True, "id": cursor.lastrowid}), 201
+    return jsonify({"success": True, "id": cursor.lastrowid, "lat": data["lat"], "lng": data["lng"]}), 201
 
 
 @app.put("/api/products/<int:product_id>")
@@ -1398,16 +1424,17 @@ def update_product(product_id):
     db = get_db()
     result = db.execute(
         "UPDATE products SET name = ?, description = ?, price_text = ?, price_amount = ?, images = ?, tags = ?, "
-        "sort_order = ?, name_en = ?, description_en = ?, name_zh = ?, description_zh = ? "
+        "sort_order = ?, map_url = ?, lat = ?, lng = ?, name_en = ?, description_en = ?, name_zh = ?, description_zh = ? "
         "WHERE id = ? AND kind = 'product'",
         (data["name"], data["description"], data["price_text"], data["price_amount"], data["images"], data["tags"],
-         data["sort_order"], data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
+         data["sort_order"], data["map_url"], data["lat"], data["lng"],
+         data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
          product_id),
     )
     db.commit()
     if result.rowcount == 0:
         return jsonify({"success": False, "error": "ไม่พบรายการนี้"}), 404
-    return jsonify({"success": True})
+    return jsonify({"success": True, "lat": data["lat"], "lng": data["lng"]})
 
 
 @app.delete("/api/products/<int:product_id>")
@@ -1434,6 +1461,8 @@ def list_services():
 
 
 def _parse_service_payload(payload):
+    map_url = (payload.get("map_url") or "").strip() or None
+    lat, lng = _extract_lat_lng(map_url)
     return {
         "service_type": (payload.get("service_type") or "").strip(),
         "name": (payload.get("name") or "").strip(),
@@ -1447,6 +1476,9 @@ def _parse_service_payload(payload):
         "awards": (payload.get("awards") or "").strip() or None,
         "tags": _images_to_db(payload.get("tags")),
         "sort_order": int(payload.get("sort_order") or 0),
+        "map_url": map_url,
+        "lat": lat,
+        "lng": lng,
         "name_en": (payload.get("name_en") or "").strip() or None,
         "description_en": (payload.get("description_en") or "").strip() or None,
         "name_zh": (payload.get("name_zh") or "").strip() or None,
@@ -1464,17 +1496,17 @@ def create_service():
     db = get_db()
     cursor = db.execute(
         "INSERT INTO services (service_type, name, description, images, price_text, schedule_text, "
-        "includes_text, languages, license_no, awards, tags, sort_order, name_en, description_en, "
-        "name_zh, description_zh, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "includes_text, languages, license_no, awards, tags, sort_order, map_url, lat, lng, "
+        "name_en, description_en, name_zh, description_zh, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (data["service_type"], data["name"], data["description"], data["images"], data["price_text"],
          data["schedule_text"], data["includes_text"], data["languages"], data["license_no"],
-         data["awards"], data["tags"], data["sort_order"],
+         data["awards"], data["tags"], data["sort_order"], data["map_url"], data["lat"], data["lng"],
          data["name_en"], data["description_en"], data["name_zh"], data["description_zh"],
          datetime.now(timezone.utc).isoformat()),
     )
     db.commit()
-    return jsonify({"success": True, "id": cursor.lastrowid}), 201
+    return jsonify({"success": True, "id": cursor.lastrowid, "lat": data["lat"], "lng": data["lng"]}), 201
 
 
 @app.put("/api/services/<int:service_id>")
@@ -1488,16 +1520,17 @@ def update_service(service_id):
     result = db.execute(
         "UPDATE services SET service_type = ?, name = ?, description = ?, images = ?, price_text = ?, "
         "schedule_text = ?, includes_text = ?, languages = ?, license_no = ?, awards = ?, tags = ?, "
-        "sort_order = ?, name_en = ?, description_en = ?, name_zh = ?, description_zh = ? WHERE id = ?",
+        "sort_order = ?, map_url = ?, lat = ?, lng = ?, name_en = ?, description_en = ?, name_zh = ?, "
+        "description_zh = ? WHERE id = ?",
         (data["service_type"], data["name"], data["description"], data["images"], data["price_text"],
          data["schedule_text"], data["includes_text"], data["languages"], data["license_no"],
-         data["awards"], data["tags"], data["sort_order"],
+         data["awards"], data["tags"], data["sort_order"], data["map_url"], data["lat"], data["lng"],
          data["name_en"], data["description_en"], data["name_zh"], data["description_zh"], service_id),
     )
     db.commit()
     if result.rowcount == 0:
         return jsonify({"success": False, "error": "ไม่พบบริการนี้"}), 404
-    return jsonify({"success": True})
+    return jsonify({"success": True, "lat": data["lat"], "lng": data["lng"]})
 
 
 @app.delete("/api/services/<int:service_id>")

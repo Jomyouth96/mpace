@@ -258,6 +258,11 @@
           <input id="product-tags" type="text" placeholder="เช่น อินทรีย์, ของฝาก">
         </div>
         <div class="form-field">
+          <label for="product-map-url">ลิงก์ Google Maps ของจุดขาย/แหล่งผลิต (ไม่บังคับ — ถ้าใส่จะไปแสดงบนหน้าแผนที่ชุมชนด้วย)</label>
+          <input id="product-map-url" type="text" placeholder="วางลิงก์จาก Google Maps เช่น https://maps.app.goo.gl/... หรือ https://www.google.com/maps/place/...">
+          <p id="product-map-status" style="font-size:12px; color:var(--text-muted); margin:2px 0 0;"></p>
+        </div>
+        <div class="form-field">
           <label>รูปภาพ (เพิ่มได้หลายรูป)</label>
           <div id="product-images-picker"></div>
         </div>
@@ -351,6 +356,11 @@
         <div class="form-field">
           <label for="service-tags">แท็ก (คั่นด้วยจุลภาค เช่น ประวัติศาสตร์, ภาษาอังกฤษ)</label>
           <input id="service-tags" type="text" placeholder="เช่น ประวัติศาสตร์, ภาษาอังกฤษ">
+        </div>
+        <div class="form-field">
+          <label for="service-map-url">ลิงก์ Google Maps ของบริการนี้ (ไม่บังคับ — ถ้าใส่จะไปแสดงบนหน้าแผนที่ชุมชนด้วย)</label>
+          <input id="service-map-url" type="text" placeholder="วางลิงก์จาก Google Maps เช่น https://maps.app.goo.gl/... หรือ https://www.google.com/maps/place/...">
+          <p id="service-map-status" style="font-size:12px; color:var(--text-muted); margin:2px 0 0;"></p>
         </div>
 
         <div class="admin-form-actions">

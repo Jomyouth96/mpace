@@ -156,22 +156,14 @@ var Modal = (function () {
   return { open: open, close: close };
 })();
 
-// ============ ATTRACTIONS (dynamic, per-language, searchable via category filter + map) ============
+// ============ ATTRACTIONS (dynamic, per-language, searchable via category filter) ============
 (function () {
   var grid = document.getElementById('attraction-grid');
   var filterButtons = document.querySelectorAll('#attraction-filters .pill-btn');
-  var mapEl = document.getElementById('attraction-leaflet-map');
   if (!grid) return;
-
-  // Real GPS center of Mae Ho Phra subdistrict (municipal office), used so the
-  // map has a sensible view even before every attraction has a pinned location.
-  var COMMUNITY_CENTER = [19.1136158, 99.0202498];
 
   var allPlaces = [];
   var activeFilter = 'all';
-  var map = null;
-  var markersLayer = null;
-  var fitDone = false;
 
   // Thai fields are required on every attraction, so Thai always shows
   // everything. EN/ZH only show attractions where that language's name +
@@ -232,43 +224,6 @@ var Modal = (function () {
         });
       });
     }
-
-    renderMapMarkers(visible);
-  }
-
-  function renderMapMarkers(visible) {
-    if (!mapEl || !window.L) return;
-    if (!map) {
-      map = L.map(mapEl, { scrollWheelZoom: false }).setView(COMMUNITY_CENTER, 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19
-      }).addTo(map);
-      markersLayer = L.layerGroup().addTo(map);
-    }
-    markersLayer.clearLayers();
-
-    var located = visible.filter(function (x) { return x.p.lat != null && x.p.lng != null; });
-    located.forEach(function (x) {
-      var p = x.p, l = x.l;
-      var color = p.category === 'culture' ? '#2E6B47' : '#D9A441';
-      var marker = L.circleMarker([p.lat, p.lng], {
-        radius: 10, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1
-      }).addTo(markersLayer);
-      var popupEl = document.createElement('div');
-      popupEl.innerHTML =
-        '<h4>' + escapeHtml(l.name) + '</h4>' +
-        '<p>' + escapeHtml(l.description.slice(0, 60)) + (l.description.length > 60 ? '…' : '') + '</p>' +
-        '<span class="btn-link">' + (window.t ? window.t('view_details') : 'ดูรายละเอียด →') + '</span>';
-      popupEl.querySelector('.btn-link').addEventListener('click', function () { openAttractionModal(p, l); });
-      marker.bindPopup(popupEl);
-    });
-
-    if (located.length && !fitDone) {
-      var bounds = L.latLngBounds(located.map(function (x) { return [x.p.lat, x.p.lng]; }));
-      map.fitBounds(bounds.pad(0.35), { maxZoom: 15 });
-      fitDone = true;
-    }
   }
 
   filterButtons.forEach(function (btn) {
@@ -291,6 +246,145 @@ var Modal = (function () {
     .catch(function () {
       grid.innerHTML = '<p style="color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_attractions') : '') + '</p>';
     });
+})();
+
+// ============ COMMUNITY MAP (attractions + pinned products/services, guarded — only present on map.html) ============
+(function () {
+  var mapEl = document.getElementById('community-map');
+  if (!mapEl) return;
+
+  var filterButtons = document.querySelectorAll('#map-filters .pill-btn');
+
+  var SERVICE_TYPE_LABELS = {
+    tour: 'ทัวร์', guide: 'ไกด์ชุมชน', restaurant: 'ร้านอาหาร',
+    massage: 'นวดไทย', driver: 'บริการรถรับส่ง', accommodation: 'ที่พัก'
+  };
+
+  var CATEGORY_COLORS = { nature: '#D9A441', culture: '#2E6B47', product: '#3B7DD8', service: '#9B51E0' };
+
+  // Real GPS center of Mae Ho Phra subdistrict (municipal office), used so the
+  // map has a sensible view even before anything has a pinned location.
+  var COMMUNITY_CENTER = [19.1136158, 99.0202498];
+
+  var allPins = [];
+  var activeFilter = 'all';
+  var map = null;
+  var markersLayer = null;
+  var fitDone = false;
+
+  function localize(item) {
+    var lang = window.getLang ? window.getLang() : 'th';
+    if (lang === 'en' && item.name_en && item.description_en) return { name: item.name_en, description: item.description_en };
+    if (lang === 'zh' && item.name_zh && item.description_zh) return { name: item.name_zh, description: item.description_zh };
+    if (lang === 'th') return { name: item.name, description: item.description };
+    return null;
+  }
+
+  function openModal(pin) {
+    var item = pin.item, l = pin.l;
+    if (pin.category === 'nature' || pin.category === 'culture') {
+      Modal.open({
+        title: l.name,
+        tag: item.tag || (window.t ? window.t('legend_' + pin.category) : pin.category),
+        images: item.images,
+        desc: l.description
+      });
+    } else if (pin.category === 'product') {
+      Modal.open({ title: l.name, images: item.images, desc: l.description, priceText: item.price_text });
+    } else {
+      var fields = [];
+      if (item.service_type === 'tour' || item.service_type === 'accommodation') {
+        if (item.schedule_text) fields.push({ label: 'กำหนดการ / เวลา', value: item.schedule_text });
+        if (item.includes_text) fields.push({ label: 'รวม/ไม่รวม/เงื่อนไข', value: item.includes_text });
+      }
+      if (item.service_type === 'guide') {
+        if (item.languages) fields.push({ label: 'ภาษาที่ใช้', value: item.languages });
+        if (item.license_no) fields.push({ label: 'ใบอนุญาตไกด์', value: item.license_no });
+      }
+      if (item.service_type === 'massage' && item.license_no) fields.push({ label: 'ใบอนุญาต', value: item.license_no });
+      if (item.awards) fields.push({ label: 'รางวัล', value: item.awards });
+      Modal.open({
+        title: l.name,
+        tag: SERVICE_TYPE_LABELS[item.service_type],
+        images: item.images,
+        desc: l.description,
+        fields: fields,
+        priceText: item.price_text
+      });
+    }
+  }
+
+  function render() {
+    if (!window.L) return;
+    if (!map) {
+      map = L.map(mapEl, { scrollWheelZoom: false }).setView(COMMUNITY_CENTER, 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(map);
+      markersLayer = L.layerGroup().addTo(map);
+    }
+    markersLayer.clearLayers();
+
+    var visible = allPins.filter(function (pin) { return activeFilter === 'all' || pin.category === activeFilter; });
+    visible.forEach(function (pin) {
+      var marker = L.circleMarker([pin.item.lat, pin.item.lng], {
+        radius: 10, color: '#fff', weight: 2, fillColor: CATEGORY_COLORS[pin.category], fillOpacity: 1
+      }).addTo(markersLayer);
+      marker.bindTooltip(
+        '<strong>' + escapeHtml(pin.l.name) + '</strong><br>' +
+        escapeHtml(pin.l.description.slice(0, 50)) + (pin.l.description.length > 50 ? '…' : ''),
+        { direction: 'top', offset: [0, -6], opacity: 0.95 }
+      );
+      marker.on('click', function () { openModal(pin); });
+      marker.getElement() && (marker.getElement().style.cursor = 'pointer');
+    });
+
+    if (visible.length && !fitDone) {
+      var bounds = L.latLngBounds(visible.map(function (pin) { return [pin.item.lat, pin.item.lng]; }));
+      map.fitBounds(bounds.pad(0.35), { maxZoom: 15 });
+      fitDone = true;
+    }
+  }
+
+  filterButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      filterButtons.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      activeFilter = btn.getAttribute('data-filter');
+      render();
+    });
+  });
+
+  window.addEventListener('langchange', render);
+
+  Promise.all([
+    fetch(API_BASE + '/api/attractions').then(function (res) { return res.json(); }),
+    fetch(API_BASE + '/api/products').then(function (res) { return res.json(); }),
+    fetch(API_BASE + '/api/services').then(function (res) { return res.json(); })
+  ]).then(function (results) {
+    var attractions = results[0], products = results[1], services = results[2];
+    var pins = [];
+    attractions.forEach(function (a) {
+      if (a.lat == null || a.lng == null) return;
+      var l = localize(a);
+      if (l) pins.push({ category: a.category, item: a, l: l });
+    });
+    products.forEach(function (p) {
+      if (p.lat == null || p.lng == null) return;
+      var l = localize(p);
+      if (l) pins.push({ category: 'product', item: p, l: l });
+    });
+    services.forEach(function (s) {
+      if (s.lat == null || s.lng == null) return;
+      var l = localize(s);
+      if (l) pins.push({ category: 'service', item: s, l: l });
+    });
+    allPins = pins;
+    render();
+  }).catch(function () {
+    mapEl.innerHTML = '<p style="padding:20px; color:var(--text-muted); font-size:14px;">' + (window.t ? window.t('err_load_attractions') : '') + '</p>';
+  });
 })();
 
 // ============ NEARBY ATTRACTIONS (dynamic) ============

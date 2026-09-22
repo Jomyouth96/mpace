@@ -771,6 +771,8 @@
   var productPrice = document.getElementById('product-price');
   var productPriceAmount = document.getElementById('product-price-amount');
   var productTags = document.getElementById('product-tags');
+  var productMapUrl = document.getElementById('product-map-url');
+  var productMapStatus = document.getElementById('product-map-status');
   var productImages = createImagePicker('product-images-picker');
   var productFormTitle = document.getElementById('product-form-title');
   var productSaveBtn = document.getElementById('product-save-btn');
@@ -786,6 +788,8 @@
     productPrice.value = '';
     productPriceAmount.value = '';
     productTags.value = '';
+    productMapUrl.value = '';
+    productMapStatus.textContent = '';
     productNameEn.value = '';
     productDescriptionEn.value = '';
     productNameZh.value = '';
@@ -826,7 +830,7 @@
           '<div class="admin-item-body">' +
             '<h5>' + escapeHtml(p.name) + '</h5>' +
             '<p>' + escapeHtml(p.description) + '</p>' +
-            '<div class="admin-item-meta">' + escapeHtml(p.price_text || '') + (p.images ? ' · ' + p.images.length + ' รูป' : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + ' · ภาษา: ไทย' + (p.name_en && p.description_en ? ', EN' : '') + (p.name_zh && p.description_zh ? ', 中文' : '') + (p.price_amount != null ? ' · 🛒 ใส่ตะกร้าได้ (฿' + p.price_amount + ')' : ' · ยังกดสั่งซื้อไม่ได้') + '</div>' +
+            '<div class="admin-item-meta">' + escapeHtml(p.price_text || '') + (p.images ? ' · ' + p.images.length + ' รูป' : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + ' · ภาษา: ไทย' + (p.name_en && p.description_en ? ', EN' : '') + (p.name_zh && p.description_zh ? ', 中文' : '') + (p.price_amount != null ? ' · 🛒 ใส่ตะกร้าได้ (฿' + p.price_amount + ')' : ' · ยังกดสั่งซื้อไม่ได้') + (p.lat != null && p.lng != null ? ' · 📍 อยู่บนแผนที่' : '') + '</div>' +
           '</div>' +
           '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
         item.querySelector('.edit-btn').addEventListener('click', function () {
@@ -836,6 +840,10 @@
           productPrice.value = p.price_text || '';
           productPriceAmount.value = (p.price_amount != null) ? p.price_amount : '';
           productTags.value = tags.join(', ');
+          productMapUrl.value = p.map_url || '';
+          productMapStatus.textContent = (p.lat != null && p.lng != null)
+            ? 'พิกัดปัจจุบัน: ' + p.lat.toFixed(5) + ', ' + p.lng.toFixed(5)
+            : '';
           productNameEn.value = p.name_en || '';
           productDescriptionEn.value = p.description_en || '';
           productNameZh.value = p.name_zh || '';
@@ -875,6 +883,7 @@
       var payload = {
         name: name, description: description, price_text: productPrice.value.trim(),
         price_amount: productPriceAmount.value.trim(), tags: tags, images: images,
+        map_url: productMapUrl.value.trim(),
         name_en: productNameEn.value.trim(), description_en: productDescriptionEn.value.trim(),
         name_zh: productNameZh.value.trim(), description_zh: productDescriptionZh.value.trim()
       };
@@ -884,7 +893,9 @@
     }).then(function (result) {
       productSaveBtn.disabled = false;
       if (result.ok && result.data.success) {
-        productFormMsg.textContent = 'บันทึกสำเร็จ';
+        var hasPin = result.data.lat != null && result.data.lng != null;
+        var pastedUrl = productMapUrl.value.trim();
+        productFormMsg.textContent = 'บันทึกสำเร็จ' + (pastedUrl ? (hasPin ? ' — ปักหมุดบนแผนที่แล้ว' : ' — อ่านพิกัดจากลิงก์นี้ไม่ได้ ลองวางลิงก์แบบเต็มแทน') : '');
         productFormMsg.className = 'admin-msg success';
         resetProductForm();
         loadProducts();
@@ -929,6 +940,8 @@
   var serviceLicense = document.getElementById('service-license');
   var serviceAwards = document.getElementById('service-awards');
   var serviceTags = document.getElementById('service-tags');
+  var serviceMapUrl = document.getElementById('service-map-url');
+  var serviceMapStatus = document.getElementById('service-map-status');
   var serviceFormTitle = document.getElementById('service-form-title');
   var serviceSaveBtn = document.getElementById('service-save-btn');
   var serviceCancelBtn = document.getElementById('service-cancel-btn');
@@ -967,6 +980,8 @@
     serviceLicense.value = '';
     serviceAwards.value = '';
     serviceTags.value = '';
+    serviceMapUrl.value = '';
+    serviceMapStatus.textContent = '';
     serviceNameEn.value = '';
     serviceDescriptionEn.value = '';
     serviceNameZh.value = '';
@@ -1007,7 +1022,7 @@
           '<div class="admin-item-body">' +
             '<h5>' + escapeHtml(s.name) + '</h5>' +
             '<p>' + escapeHtml(s.description) + '</p>' +
-            '<div class="admin-item-meta">' + SERVICE_TYPE_LABELS[s.service_type] + (s.price_text ? ' · ' + escapeHtml(s.price_text) : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + ' · ภาษา: ไทย' + (s.name_en && s.description_en ? ', EN' : '') + (s.name_zh && s.description_zh ? ', 中文' : '') + '</div>' +
+            '<div class="admin-item-meta">' + SERVICE_TYPE_LABELS[s.service_type] + (s.price_text ? ' · ' + escapeHtml(s.price_text) : '') + (tags.length ? ' · แท็ก: ' + escapeHtml(tags.join(', ')) : '') + ' · ภาษา: ไทย' + (s.name_en && s.description_en ? ', EN' : '') + (s.name_zh && s.description_zh ? ', 中文' : '') + (s.lat != null && s.lng != null ? ' · 📍 อยู่บนแผนที่' : '') + '</div>' +
           '</div>' +
           '<div class="admin-item-actions"><button class="edit-btn">แก้ไข</button><button class="delete-btn">ลบ</button></div>';
         item.querySelector('.edit-btn').addEventListener('click', function () {
@@ -1027,6 +1042,10 @@
           serviceLicense.value = s.license_no || '';
           serviceAwards.value = s.awards || '';
           serviceTags.value = tags.join(', ');
+          serviceMapUrl.value = s.map_url || '';
+          serviceMapStatus.textContent = (s.lat != null && s.lng != null)
+            ? 'พิกัดปัจจุบัน: ' + s.lat.toFixed(5) + ', ' + s.lng.toFixed(5)
+            : '';
           updateServiceFieldVisibility();
           serviceFormTitle.textContent = 'แก้ไขบริการ';
           serviceCancelBtn.style.display = 'inline-block';
@@ -1070,6 +1089,7 @@
         license_no: serviceLicense.value.trim(),
         awards: serviceAwards.value.trim(),
         tags: serviceTags.value.split(',').map(function (t) { return t.trim(); }).filter(Boolean),
+        map_url: serviceMapUrl.value.trim(),
         name_en: serviceNameEn.value.trim(),
         description_en: serviceDescriptionEn.value.trim(),
         name_zh: serviceNameZh.value.trim(),
@@ -1081,7 +1101,9 @@
     }).then(function (result) {
       serviceSaveBtn.disabled = false;
       if (result.ok && result.data.success) {
-        serviceFormMsg.textContent = 'บันทึกสำเร็จ';
+        var hasPin = result.data.lat != null && result.data.lng != null;
+        var pastedUrl = serviceMapUrl.value.trim();
+        serviceFormMsg.textContent = 'บันทึกสำเร็จ' + (pastedUrl ? (hasPin ? ' — ปักหมุดบนแผนที่แล้ว' : ' — อ่านพิกัดจากลิงก์นี้ไม่ได้ ลองวางลิงก์แบบเต็มแทน') : '');
         serviceFormMsg.className = 'admin-msg success';
         resetServiceForm();
         loadServices();
