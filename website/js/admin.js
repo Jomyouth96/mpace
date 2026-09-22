@@ -1314,6 +1314,19 @@
     }) : qaCache);
   });
 
+  // A "new" item younger than 24h gets an attention-grabbing blinking "New"
+  // badge instead of its normal (unstyled-for-that-status) label, so the
+  // admin notices fresh orders/bookings at a glance; it fades away on its
+  // own once the item is no longer fresh.
+  function statusBadgeHtml(status, labels, createdAt) {
+    if (status === 'new') {
+      var createdMs = createdAt ? new Date(createdAt).getTime() : NaN;
+      var isFresh = !isNaN(createdMs) && (Date.now() - createdMs) < 24 * 60 * 60 * 1000;
+      return isFresh ? ' <span class="badge-new">New</span>' : '';
+    }
+    return ' <span class="answered-badge">' + labels[status] + '</span>';
+  }
+
   // ============ ORDERS ============
   var ORDER_STATUS_LABELS = {
     new: 'ใหม่', confirmed: 'ยืนยันแล้ว', shipped: 'จัดส่งแล้ว', done: 'เสร็จสิ้น',
@@ -1349,7 +1362,7 @@
       item.style.alignItems = 'stretch';
       item.innerHTML =
         '<div class="admin-item-body">' +
-          '<h5>' + escapeHtml(o.customer_name) + ' <span class="answered-badge">' + ORDER_STATUS_LABELS[o.status] + '</span></h5>' +
+          '<h5>' + escapeHtml(o.customer_name) + statusBadgeHtml(o.status, ORDER_STATUS_LABELS, o.created_at) + '</h5>' +
           '<div class="admin-item-meta">ติดต่อ: ' + escapeHtml(o.customer_contact) + ' · ที่อยู่: ' + escapeHtml(o.customer_address) + ' · ' + escapeHtml((o.created_at || '').slice(0, 16).replace('T', ' ')) + '</div>' +
           '<p style="margin-top:8px;">' + itemsHtml + '</p>' +
           (o.notes ? '<p style="margin-top:4px; color:var(--text-muted);">หมายเหตุ: ' + escapeHtml(o.notes) + '</p>' : '') +
@@ -1454,7 +1467,7 @@
       item.style.alignItems = 'stretch';
       item.innerHTML =
         '<div class="admin-item-body">' +
-          '<h5>' + escapeHtml(b.customer_name) + ' <span class="answered-badge">' + BOOKING_STATUS_LABELS[b.status] + '</span></h5>' +
+          '<h5>' + escapeHtml(b.customer_name) + statusBadgeHtml(b.status, BOOKING_STATUS_LABELS, b.created_at) + '</h5>' +
           '<div class="admin-item-meta">บริการ: ' + escapeHtml(b.service_name) + ' · ติดต่อ: ' + escapeHtml(b.customer_contact) + ' · ' + escapeHtml((b.created_at || '').slice(0, 16).replace('T', ' ')) + '</div>' +
           (b.preferred_date ? '<p style="margin-top:8px;">วันที่ต้องการ: ' + escapeHtml(b.preferred_date) + '</p>' : '') +
           (b.party_size ? '<p style="margin-top:4px;">จำนวนคน: ' + escapeHtml(b.party_size) + '</p>' : '') +
