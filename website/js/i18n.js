@@ -511,9 +511,8 @@
     try { window.localStorage.setItem(STORAGE_KEY, lang); } catch (e) { /* ignore */ }
 
     document.documentElement.lang = lang;
-    if (t('page_title')) document.title = t('page_title');
-    var metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc && t('page_desc')) metaDesc.setAttribute('content', t('page_desc'));
+    // Keep page-specific SEO title and description from each HTML document.
+    // Client-side translations must not overwrite metadata with one generic value.
 
     document.querySelectorAll('[data-i18n]').forEach(function (el) {
       el.innerHTML = t(el.getAttribute('data-i18n'));
